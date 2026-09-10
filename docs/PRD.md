@@ -906,6 +906,14 @@ LocalDate / YYYY-MM-DD
 
 Do not make attendance calculations dependent on timezone-sensitive UTC timestamps.
 
+### User timezone context (note for implementation)
+
+The primary user is based in Bangladesh (GMT+6, Asia/Dhaka). Consequences:
+
+- "Today" (today's date highlight, default selected date) must resolve from the device's local time — on the user's device this is Bangladesh time — with no timezone hardcoded into the app.
+- All business dates remain plain calendar dates (`YYYY-MM-DD`), so no timezone conversion is ever applied to attendance, teaching-period, or routine dates.
+- Future features that schedule or display instants (reminder notifications, cloud sync, exports) must account for GMT+6 / Asia/Dhaka.
+
 ## 10.3 Manual Attendance Rule
 
 The tutor controls actual attendance.

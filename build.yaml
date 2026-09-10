@@ -1,0 +1,15 @@
+# Drift code-generation options.
+#
+# store_date_time_values_as_text: timestamps (created_at/updated_at/
+# archived_at) are stored as ISO-8601 TEXT instead of epoch integers. ISO
+# text preserves the UTC flag through round-trips, so entity equality on
+# DateTime fields survives persistence (epoch storage reconstructs
+# local-time DateTimes, breaking `DateTime ==` even for identical instants).
+# Business date-only columns are unaffected — they already use explicit
+# `YYYY-MM-DD` text converters.
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          store_date_time_values_as_text: true

@@ -76,7 +76,8 @@ Responsibilities:
 | Injectable time | `clock` | 1.1.3 | Weekly carry-over and "today" logic must be deterministic in tests; `clock.now()` is overridable via `withClock` in tests. |
 | Theme persistence | `shared_preferences` | 2.5.5 | PRD §11.6 sanctions simple local key-value storage for the theme setting ahead of the Phase 2 `app_settings` row. Keeps the startup read fast and testable via mock initial values. |
 | Calendar UI | custom-built grid | — | PRD §26 requires a Samsung-inspired dense monthly grid with fixed Friday-first weeks (BR-11) and student-colored chips; a hand-built grid is fully controllable and widget-testable. `table_calendar` is deliberately NOT used. |
-| Date utilities | Dart `DateTime` (date-only convention) | — | Date-only semantics per implementation.md §6.2: normalize to midnight-local, store as `YYYY-MM-DD` TEXT in SQLite. No timezone-sensitive timestamps for business dates. `intl` deferred until localization is actually needed. |
+| Date utilities | Dart `DateTime` (date-only convention) | — | Date-only semantics per implementation.md §6.2: all business dates normalize to **UTC midnight** (timezone/DST-safe), stored as `YYYY-MM-DD` TEXT in SQLite via a Drift `TypeConverter`. Timestamps (`created_at`/`updated_at`) remain epoch-based instants. `intl` deferred until localization is actually needed. |
+| Timezone policy | device-local "today" | — | The primary user is in Bangladesh (GMT+6, Asia/Dhaka — PRD §10.2 note). "Today" is resolved from device-local time via the injectable `clock.now()` and immediately normalized to a date-only value; no timezone is hardcoded, and business dates never undergo timezone conversion. |
 | Testing | `flutter_test` (+ Drift in-memory DB) | sdk | Unit tests for domain services; repository tests against in-memory SQLite; widget tests per feature. `mocktail` deferred until a concrete need exists (Phase 2+). |
 
 Dev tooling: `flutter_lints` 6.0.0 (via `analysis_options.yaml`),
@@ -90,18 +91,25 @@ drawer's bottom area is merely reserved for the future toggle. The persisted
 `theme_mode` value is `dark`; reserved values (`light`, `system`) map to dark
 until the light theme ships.
 
-## 4. Data-integrity contract for Phase 2 (decided now, implemented later)
+## 4. Data-integrity contract (implemented in Phase 2)
 
 - `attendance_records`: `UNIQUE(student_id, attendance_date)` database
-  constraint in addition to UI-level duplicate prevention (PRD §11.5).
-- `teaching_periods` and `routine_periods` history tables preserve historical
-  months against later status/routine changes (PRD §31 Level B, §32).
-- `app_settings` singleton row: `theme_mode = dark` (fixed in v1),
-  `first_day_of_week = friday` (fixed in v1, BR-11/BR-12).
+  constraint plus repository-level `DuplicateAttendanceException`; foreign
+  keys reference `students.id` with `PRAGMA foreign_keys = ON` (PRD §11.5).
+- `students` carries the CURRENT routine snapshot (`weekly_days`,
+  `routine_weekdays`) for fast UI reads; `teaching_periods` and
+  `routine_periods` are the authoritative history used by all monthly
+  calculations, so later edits never rewrite history (PRD §31 Level B, §32).
+- `app_settings` singleton row (id = 1): `theme_mode = 'dark'`,
+  `first_day_of_week = 'friday'` (fixed in v1, BR-11/BR-12). Note: the
+  shared_preferences store from Phase 1 remains the fast startup read for
+  the theme; the database row is the canonical persisted setting — both hold
+  `dark` in v1, and the DB becomes the single source once the light theme
+  ships.
 - All records carry `created_at` / `updated_at` timestamps for future
   backup/sync conflict resolution (PRD §47).
-- Migration policy: step-by-step Drift `schemaVersion` migrations, never
-  destructive (PRD §40).
+- Migration policy: step-by-step Drift `schemaVersion` migrations (v1),
+  never destructive (PRD §40).
 
 ## 5. Test & build pipeline (task 0.6)
 
