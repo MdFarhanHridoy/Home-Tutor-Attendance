@@ -16,13 +16,15 @@
 | Android SDK | 36.1.0 (`C:\Users\Hridoy\AppData\Local\Android\sdk`), platform android-36, build-tools 36.1.0 |
 | Java | JDK 21.0.9 (Android Studio JBR, resolved by `flutter config --jdk-dir`) |
 | Licenses | All Android licenses accepted |
-| Android config | Kotlin DSL template: AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0; `applicationId dev.hometutor.home_tutor_attendance`; min/target/compile SDK resolved from `flutter.*` expressions (Flutter 3.47.3 defaults) |
+| Android config | Kotlin DSL template: AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0; `applicationId dev.hometutor.home_tutor_attendance`; effective compileSdk 36 / targetSdk 36 / minSdk 24 (Flutter 3.47.3 defaults via `flutter.*` expressions); NDK 28.2.13676358 |
 
 History: the project started on Flutter 3.7.11 and was upgraded to latest stable
 on 2026-09-10 at the user's request. The `android/` folder was regenerated from
 the Flutter 3.47.3 template (the 3.7-era AGP 7.x template cannot build modern
 compileSdk levels). An earlier manual `minSdkVersion 21` fix became obsolete
-with the regenerated template.
+with the regenerated template. During the first upgraded build, Gradle
+auto-installed NDK 28.2 (r28c), build-tools 36.0.0, and CMake 3.22.1 (licenses
+were pre-accepted); these are needed by the `sqlite3 3.x` native build hooks.
 
 Constraints accepted with this toolchain:
 
