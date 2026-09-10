@@ -6,25 +6,36 @@
 
 ---
 
-## 1. Toolchain snapshot (verified 2026-09-10)
+## 1. Toolchain snapshot (verified 2026-09-10, after SDK upgrade)
 
 | Item | Value |
 |---|---|
-| Flutter SDK | 3.7.11 stable (`C:\flutter`), framework `f72efea43c` |
-| Dart SDK | 2.19.6 |
+| Flutter SDK | 3.47.3 stable (`C:\flutter`), framework `e8113bf456` (2026-09-04) |
+| Dart SDK | 3.13.3 |
+| DevTools | 2.60.0 |
 | Android SDK | 36.1.0 (`C:\Users\Hridoy\AppData\Local\Android\sdk`), platform android-36, build-tools 36.1.0 |
-| Java | JDK 17.0.12 (`C:\Program Files\Java\jdk-17`) |
+| Java | JDK 21.0.9 (Android Studio JBR, resolved by `flutter config --jdk-dir`) |
 | Licenses | All Android licenses accepted |
-| Android config | `applicationId dev.hometutor.home_tutor_attendance`, compileSdk 33, targetSdk 33, minSdk 16 (Flutter defaults for 3.7.11) |
+| Android config | Kotlin DSL template: AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0; `applicationId dev.hometutor.home_tutor_attendance`; min/target/compile SDK resolved from `flutter.*` expressions (Flutter 3.47.3 defaults) |
+
+History: the project started on Flutter 3.7.11 and was upgraded to latest stable
+on 2026-09-10 at the user's request. The `android/` folder was regenerated from
+the Flutter 3.47.3 template (the 3.7-era AGP 7.x template cannot build modern
+compileSdk levels). An earlier manual `minSdkVersion 21` fix became obsolete
+with the regenerated template.
 
 Constraints accepted with this toolchain:
 
-- **Dart 2.19 only** — no Dart 3 language features (records, patterns, sealed
-  classes). All dependency versions are resolved by `pub` against
-  `sdk: '>=2.19.6 <3.0.0'`; upgrading the Flutter SDK later may allow newer
-  package majors, but versions are re-resolved deliberately, never silently.
-- Android Studio "bundled Java not found" and missing Visual Studio are
-  irrelevant to Android APK builds from the CLI.
+- **Dart 3.13 / SDK `>=3.12.0 <4.0.0`** — modern Dart 3 language features are
+  available; dependency constraints were re-resolved to latest majors via
+  `flutter pub upgrade --major-versions` (riverpod 3.x and go_router 18.x APIs
+  apply from Phase 1 onward).
+- `sqlite3_flutter_libs` is an end-of-life empty stub and is deliberately NOT a
+  direct dependency. Native SQLite arrives through `sqlite3 3.x` build hooks
+  pulled in by `drift_flutter`.
+- Android Studio "bundled Java not found" warning from the old doctor run is
+  resolved; Visual Studio (C++) remains absent but is irrelevant — this project
+  is Android-only.
 
 ## 2. Layered architecture
 
@@ -52,18 +63,22 @@ Responsibilities:
 - **Data** (`data/`): Drift database, table definitions, mappers, repository
   implementations. UI never touches the database directly.
 
-## 3. Technology choices (task 0.4)
+## 3. Technology choices (task 0.4, versions re-resolved 2026-09-10)
 
 | Concern | Choice | Resolved version | Rationale |
 |---|---|---|---|
-| Local database | `drift` + `sqlite3_flutter_libs` (+ `path`, `path_provider`) | 2.8.0 / 0.5.42 | PRD §22 recommends Drift + SQLite for relational constraints and explicit queries. Gives real SQL `UNIQUE(student_id, attendance_date)`, indexes, and step-by-step migrations. In-memory `NativeDatabase` makes repository tests fast and hermetic. Local file stays the source of truth (future sync is additive only). |
-| State management | `flutter_riverpod` | 2.3.7 | Compile-safe providers, testable without BuildContext, minimal boilerplate, works well with repository interfaces. |
-| Routing | `go_router` | 12.1.1 | Declarative route map; supports the drawer-based navigation and future deep links without redesign. |
-| ID generation | `uuid` | 4.1.0 | v4 string IDs for students/periods/attendance; IDs are the only relationship keys (PRD Edge Case 10). |
-| Injectable time | `clock` | 1.1.1 | Weekly carry-over and "today" logic must be deterministic in tests; `clock.now()` is overridable via `withClock` in tests. |
+| Local database | `drift` + `drift_flutter` (+ `path`, `path_provider`) | 2.35.0 / 0.3.1 | PRD §22 recommends Drift + SQLite for relational constraints and explicit queries. Gives real SQL `UNIQUE(student_id, attendance_date)`, indexes, and step-by-step migrations. `drift_flutter` provides the modern lazy database setup; native SQLite ships via `sqlite3 3.x` build hooks (no EOL plugin libs needed). In-memory databases keep repository tests fast and hermetic. Local file stays the source of truth (future sync is additive only). |
+| State management | `flutter_riverpod` | 3.4.3 | Compile-safe providers, testable without BuildContext, minimal boilerplate, works well with repository interfaces. Phase 1+ codes against the Riverpod 3.x API. |
+| Routing | `go_router` | 18.0.1 | Declarative route map; supports the drawer-based navigation and future deep links without redesign. Phase 1+ codes against the go_router 18.x API. |
+| ID generation | `uuid` | 4.6.0 | v4 string IDs for students/periods/attendance; IDs are the only relationship keys (PRD Edge Case 10). |
+| Injectable time | `clock` | 1.1.3 | Weekly carry-over and "today" logic must be deterministic in tests; `clock.now()` is overridable via `withClock` in tests. |
 | Calendar UI | custom-built grid | — | PRD §26 requires a Samsung-inspired dense monthly grid with fixed Friday-first weeks (BR-11) and student-colored chips; a hand-built grid is fully controllable and widget-testable. `table_calendar` is deliberately NOT used. |
 | Date utilities | Dart `DateTime` (date-only convention) | — | Date-only semantics per implementation.md §6.2: normalize to midnight-local, store as `YYYY-MM-DD` TEXT in SQLite. No timezone-sensitive timestamps for business dates. `intl` deferred until localization is actually needed. |
 | Testing | `flutter_test` (+ Drift in-memory DB) | sdk | Unit tests for domain services; repository tests against in-memory SQLite; widget tests per feature. `mocktail` deferred until a concrete need exists (Phase 2+). |
+
+Dev tooling: `flutter_lints` 6.0.0 (via `analysis_options.yaml`),
+`drift_dev` 2.35.0 + `build_runner` 2.16.1 for Drift codegen (first used in
+Phase 2).
 
 ## 4. Data-integrity contract for Phase 2 (decided now, implemented later)
 
@@ -83,7 +98,7 @@ Responsibilities:
 Every phase gate runs, in order:
 
 ```bash
-dart format .              # 80-column formatting, applied before analysis
+dart format .              # formatting, applied before analysis
 flutter analyze            # must exit 0 with no issues
 flutter test               # unit + widget tests must pass
 flutter build apk --debug  # (release in Phase 10)

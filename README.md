@@ -10,7 +10,8 @@ lives in `docs/implementation.md`; product requirements live in `docs/PRD.md`.
 
 ## Development
 
-Requirements: Flutter 3.7.x (Dart 2.19), Android SDK, JDK 17.
+Requirements: latest stable Flutter (3.47.x, Dart 3.13), Android SDK 36,
+JDK 21 (Android Studio JBR).
 
 ```bash
 flutter pub get           # fetch dependencies
