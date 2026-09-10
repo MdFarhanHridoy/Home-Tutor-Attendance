@@ -26,6 +26,10 @@ class YearMonth {
   YearMonth previous() =>
       month == 1 ? YearMonth(year - 1, 12) : YearMonth(year, month - 1);
 
+  /// The month immediately after this one.
+  YearMonth next() =>
+      month == 12 ? YearMonth(year + 1, 1) : YearMonth(year, month + 1);
+
   /// Whether [date] lies inside this month.
   bool contains(DateTime date) => date.year == year && date.month == month;
 

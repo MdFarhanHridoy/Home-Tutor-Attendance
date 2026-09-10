@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/attendance/presentation/screens/date_detail_screen.dart';
 import '../../features/calendar/presentation/screens/home_screen.dart';
 import '../../features/monthly_goal/presentation/screens/monthly_goal_screen.dart';
 import '../../features/students/presentation/screens/student_detail_screen.dart';
@@ -14,7 +15,15 @@ abstract final class AppRoutes {
   static const String studentNew = '/students/new';
   static String studentDetail(String id) => '/students/$id';
   static String studentEdit(String id) => '/students/$id/edit';
+  static String dateDetail(DateTime date) => '/date/${_iso(date)}';
   static const String monthlyGoal = '/monthly-goal';
+
+  static String _iso(DateTime date) {
+    final String y = date.year.toString().padLeft(4, '0');
+    final String m = date.month.toString().padLeft(2, '0');
+    final String d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
 }
 
 /// Builds the application's router configuration.
@@ -67,6 +76,12 @@ GoRouter buildAppRouter() {
         name: 'monthly-goal',
         builder: (BuildContext context, GoRouterState state) =>
             MonthlyGoalScreen(currentLocation: state.matchedLocation),
+      ),
+      GoRoute(
+        path: '/date/:isoDate',
+        name: 'date-detail',
+        builder: (BuildContext context, GoRouterState state) =>
+            DateDetailScreen(isoDate: state.pathParameters['isoDate']!),
       ),
     ],
   );

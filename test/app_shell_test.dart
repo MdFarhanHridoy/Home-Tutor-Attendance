@@ -1,29 +1,13 @@
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:home_tutor_attendance/app/app.dart';
-import 'package:home_tutor_attendance/app/router/app_router.dart';
 import 'package:home_tutor_attendance/app/theme/app_theme.dart';
-import 'package:home_tutor_attendance/data/database/app_database.dart';
-import 'package:home_tutor_attendance/data/providers.dart';
+
+import 'helpers/app_harness.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester) async {
-    final AppDatabase db = AppDatabase.forTesting(NativeDatabase.memory());
-    addTearDown(db.close);
-    SharedPreferences.setMockInitialValues(const <String, Object>{
-      'app_settings.theme_mode': 'dark',
-    });
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [databaseProvider.overrideWith((Ref ref) => db)],
-        child: HomeTutorAttendanceApp(router: buildAppRouter()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await pumpAppWithDb(tester);
   }
 
   Future<void> openDrawer(WidgetTester tester) async {
@@ -40,11 +24,18 @@ void main() {
   Finder drawerText(String text) =>
       find.descendant(of: find.byType(Drawer), matching: find.text(text));
 
-  testWidgets('app opens on the Home route', (WidgetTester tester) async {
+  testWidgets('app opens on the Home route showing the current month (AC-01)', (
+    WidgetTester tester,
+  ) async {
     await pumpApp(tester);
 
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Monthly calendar will appear here.'), findsOneWidget);
+    expect(
+      find.text('Home'),
+      findsNothing,
+    ); // AppBar shows the month, not 'Home'
+    expect(find.text('September 2026'), findsOneWidget);
+    expect(find.byKey(const Key('cal-day-2026-09-10')), findsOneWidget);
+    await disposeApp(tester);
   });
 
   testWidgets('drawer lists all primary destinations', (
@@ -57,6 +48,7 @@ void main() {
     expect(drawerText('Home'), findsOneWidget);
     expect(drawerText('Students List'), findsOneWidget);
     expect(drawerText('Monthly Attendance Goal'), findsOneWidget);
+    await disposeApp(tester);
   });
 
   testWidgets('tapping Students navigates to the Students screen', (
@@ -71,8 +63,7 @@ void main() {
     expect(find.text('No students yet'), findsOneWidget);
     // Dispose the tree while the body runs so drift's stream cleanup timers
     // fire before the binding's pending-timer assertion.
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 30));
+    await disposeApp(tester);
   });
 
   testWidgets('Android back from a secondary screen returns Home', (
@@ -89,7 +80,8 @@ void main() {
 
     await systemBack(tester);
 
-    expect(find.text('Monthly calendar will appear here.'), findsOneWidget);
+    expect(find.text('September 2026'), findsOneWidget);
+    await disposeApp(tester);
   });
 
   testWidgets('Home from a secondary screen resets the stack', (
@@ -104,7 +96,7 @@ void main() {
     await tester.tap(drawerText('Home'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Monthly calendar will appear here.'), findsOneWidget);
+    expect(find.text('September 2026'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 30));
   });
@@ -126,7 +118,7 @@ void main() {
       // A single back press must reach Home — no duplicated Students route.
       await systemBack(tester);
       await tester.pumpAndSettle();
-      expect(find.text('Monthly calendar will appear here.'), findsOneWidget);
+      expect(find.text('September 2026'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 30));
     },
@@ -168,5 +160,6 @@ void main() {
     expect(app.themeMode, ThemeMode.dark);
     expect(app.darkTheme?.brightness, Brightness.dark);
     expect(identical(app.theme, appTheme), isTrue);
+    await disposeApp(tester);
   });
 }
