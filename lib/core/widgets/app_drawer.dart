@@ -52,7 +52,7 @@ class AppDrawer extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              selected: currentLocation == destination.$1,
+              selected: _isSelected(destination.$1, currentLocation),
               onTap: () => _handleDestinationSelected(context, destination.$1),
             ),
           // Reserved for the future theme toggle (PRD §9.4); intentionally
@@ -61,6 +61,15 @@ class AppDrawer extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Home matches exactly; secondary destinations match by prefix so nested
+  /// routes (e.g. /students/new) still highlight their section.
+  bool _isSelected(String route, String location) {
+    if (route == AppRoutes.home) {
+      return location == AppRoutes.home;
+    }
+    return location.startsWith(route);
   }
 
   void _handleDestinationSelected(BuildContext context, String target) {

@@ -1,3 +1,4 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,14 +7,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:home_tutor_attendance/app/app.dart';
 import 'package:home_tutor_attendance/app/router/app_router.dart';
 import 'package:home_tutor_attendance/app/theme/app_theme.dart';
+import 'package:home_tutor_attendance/data/database/app_database.dart';
+import 'package:home_tutor_attendance/data/providers.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester) async {
+    final AppDatabase db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
     SharedPreferences.setMockInitialValues(const <String, Object>{
       'app_settings.theme_mode': 'dark',
     });
     await tester.pumpWidget(
-      ProviderScope(child: HomeTutorAttendanceApp(router: buildAppRouter())),
+      ProviderScope(
+        overrides: [databaseProvider.overrideWith((Ref ref) => db)],
+        child: HomeTutorAttendanceApp(router: buildAppRouter()),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -60,7 +68,11 @@ void main() {
     await tester.tap(drawerText('Students List'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Student list will appear here.'), findsOneWidget);
+    expect(find.text('No students yet'), findsOneWidget);
+    // Dispose the tree while the body runs so drift's stream cleanup timers
+    // fire before the binding's pending-timer assertion.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
   });
 
   testWidgets('Android back from a secondary screen returns Home', (
@@ -93,6 +105,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Monthly calendar will appear here.'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
   });
 
   testWidgets(
@@ -107,12 +121,14 @@ void main() {
       await openDrawer(tester);
       await tester.tap(drawerText('Students List'));
       await tester.pumpAndSettle();
-      expect(find.text('Student list will appear here.'), findsOneWidget);
+      expect(find.text('No students yet'), findsOneWidget);
 
       // A single back press must reach Home — no duplicated Students route.
       await systemBack(tester);
       await tester.pumpAndSettle();
       expect(find.text('Monthly calendar will appear here.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 30));
     },
   );
 
@@ -137,6 +153,8 @@ void main() {
     );
     expect(studentsTile.selected, isTrue);
     expect(homeTile.selected, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
   });
 
   testWidgets('app renders with the dark-only theme', (
