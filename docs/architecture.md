@@ -74,6 +74,7 @@ Responsibilities:
 | Routing | `go_router` | 18.0.1 | Declarative route map; supports the drawer-based navigation and future deep links without redesign. Phase 1+ codes against the go_router 18.x API. |
 | ID generation | `uuid` | 4.6.0 | v4 string IDs for students/periods/attendance; IDs are the only relationship keys (PRD Edge Case 10). |
 | Injectable time | `clock` | 1.1.3 | Weekly carry-over and "today" logic must be deterministic in tests; `clock.now()` is overridable via `withClock` in tests. |
+| Theme persistence | `shared_preferences` | 2.5.5 | PRD §11.6 sanctions simple local key-value storage for the theme setting ahead of the Phase 2 `app_settings` row. Keeps the startup read fast and testable via mock initial values. |
 | Calendar UI | custom-built grid | — | PRD §26 requires a Samsung-inspired dense monthly grid with fixed Friday-first weeks (BR-11) and student-colored chips; a hand-built grid is fully controllable and widget-testable. `table_calendar` is deliberately NOT used. |
 | Date utilities | Dart `DateTime` (date-only convention) | — | Date-only semantics per implementation.md §6.2: normalize to midnight-local, store as `YYYY-MM-DD` TEXT in SQLite. No timezone-sensitive timestamps for business dates. `intl` deferred until localization is actually needed. |
 | Testing | `flutter_test` (+ Drift in-memory DB) | sdk | Unit tests for domain services; repository tests against in-memory SQLite; widget tests per feature. `mocktail` deferred until a concrete need exists (Phase 2+). |
@@ -81,6 +82,13 @@ Responsibilities:
 Dev tooling: `flutter_lints` 6.0.0 (via `analysis_options.yaml`),
 `drift_dev` 2.35.0 + `build_runner` 2.16.1 for Drift codegen (first used in
 Phase 2).
+
+**Theme decision (Phase 1):** `implementation.md`'s Phase 1 text lists a
+light/dark toggle (pre-v1.1 wording). The PRD v1.1 supersedes it (BR-12,
+§19): Version 1 ships **dark-only**, no theme control is shown, and the
+drawer's bottom area is merely reserved for the future toggle. The persisted
+`theme_mode` value is `dark`; reserved values (`light`, `system`) map to dark
+until the light theme ships.
 
 ## 4. Data-integrity contract for Phase 2 (decided now, implemented later)
 
