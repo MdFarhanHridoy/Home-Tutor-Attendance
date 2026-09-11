@@ -60,13 +60,13 @@ void main() {
     // Overall header (single student → equals the row) via its key.
     expect(
       tester.widget<Text>(find.byKey(const Key('goal-overall-2026-09'))).data,
-      '5 / 13 · 38%',
+      '5 / 12 · 42%',
     );
-    // Row: 5 attended / 13 scheduled (Mon×4 + Wed×5 + Fri×4) → 38%.
+    // Row: 5 attended / 12 flat target (3 days/week × 4, v1.2).
     expect(
       find.descendant(
         of: find.byKey(Key('goal-row-${student.id}-2026-09')),
-        matching: find.text('5 / 13 · 38%'),
+        matching: find.text('5 / 12 · 42%'),
       ),
       findsOneWidget,
     );

@@ -91,9 +91,10 @@ class StudentDetailScreen extends ConsumerWidget {
             title: 'Routine',
             lines: <String>[
               '${student.weeklyDays} days per week',
-              AppDateFormats.weekdayList(
-                student.routineWeekdays.map((Weekday w) => w.fullLabel),
-              ),
+              if (student.routineWeekdays.isNotEmpty)
+                AppDateFormats.weekdayList(
+                  student.routineWeekdays.map((Weekday w) => w.fullLabel),
+                ),
               'Teaching since ${AppDateFormats.shortDate(student.startDate)}',
             ],
           ),
@@ -194,8 +195,10 @@ class StudentDetailScreen extends ConsumerWidget {
                           '${routine.endDate == null ? 'ongoing' : AppDateFormats.shortDate(routine.endDate!)}',
                         ),
                         subtitle: Text(
-                          '${routine.weeklyDays} days/week · '
-                          '${AppDateFormats.weekdayList(routine.weekdays.map((Weekday w) => w.shortLabel))}',
+                          routine.weekdays.isEmpty
+                              ? '${routine.weeklyDays} days/week'
+                              : '${routine.weeklyDays} days/week · '
+                                    '${AppDateFormats.weekdayList(routine.weekdays.map((Weekday w) => w.shortLabel))}',
                         ),
                       ),
                   ],

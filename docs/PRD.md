@@ -10,6 +10,8 @@
 
 **v1.1 Change Summary:** Added requirements — (1) all user data always stored locally, app fully offline, cloud backup/sync as a future feature; (2) week always starts on Friday; (3) weekly attendance cap per student with carry-over recovery of missed days; (4) dark theme for Version 1, light theme deferred to a future version.
 
+**v1.2 Change Summary (2026-09-11, user-approved product amendment):** Simplified the routine model — (1) routine weekday selection is OPTIONAL; the routine is defined by "days per week" only, and the tutor may record attendance for any student on ANY calendar date; (2) the weekly attendance cap and carry-over mechanism are REMOVED — there is no per-week limit; (3) the monthly goal denominator is a FLAT `weekly_days × 4` for every month the student's teaching period overlaps (the start date within the month does not prorate it), superseding the weekday-occurrence calculation; (4) over-attendance displays uncapped, e.g. `14 / 12`. Where any older section (§10.6, §13 denominators, BR-10, AC-09/AC-14/AC-15/AC-22/AC-23, Edge Cases 5/6/9/11/12/13/14 in their cap/goal aspects) conflicts with this amendment, v1.2 supersedes. Unchanged: Friday-first calendar layout (BR-11), one-record-per-date-per-student, historical teaching/routine periods, six-month goal window with month-overlap visibility, dark-only theme, fully offline local data.
+
 ---
 
 ## 1. Product Overview

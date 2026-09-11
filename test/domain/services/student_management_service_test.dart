@@ -214,7 +214,7 @@ void main() {
     );
   });
 
-  test('validation rejects weeklyDays outside 1-7 (AC-09)', () async {
+  test('validation rejects weeklyDays outside 1-7', () async {
     expect(
       () => service.createStudent(
         name: 'A',
@@ -227,18 +227,30 @@ void main() {
     );
   });
 
-  test('validation rejects mismatched weekday counts (AC-09)', () async {
-    expect(
-      () => service.createStudent(
+  test(
+    'routine weekdays are optional and need not match the count (v1.2)',
+    () async {
+      // Fewer weekdays than the weekly rate is fine — the routine is defined
+      // by days-per-week; weekdays are informational.
+      final withFew = await service.createStudent(
         name: 'A',
         weeklyDays: 3,
         routineWeekdays: tueThu, // only 2
         color: '0xFF42A5F5',
         startDate: today,
-      ),
-      throwsArgumentError,
-    );
-  });
+      );
+      expect(withFew.weeklyDays, 3);
+
+      final withNone = await service.createStudent(
+        name: 'B',
+        weeklyDays: 3,
+        routineWeekdays: const <Weekday>[],
+        color: '0xFF42A5F5',
+        startDate: today,
+      );
+      expect(withNone.routineWeekdays, isEmpty);
+    },
+  );
 
   test('validation rejects duplicate weekdays', () async {
     expect(

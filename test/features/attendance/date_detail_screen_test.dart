@@ -86,7 +86,7 @@ void main() {
 
     expect(find.byKey(const Key('student-picker')), findsOneWidget);
     expect(find.text('Alpha One'), findsOneWidget); // picker row
-    expect(find.textContaining('0 of 3 used'), findsOneWidget);
+    expect(find.text('3 days per week'), findsOneWidget);
 
     await tester.tap(find.byKey(Key('picker-row-$idA')));
     await tester.pumpAndSettle();
@@ -176,45 +176,46 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('attendance beyond the weekly allowance is blocked (AC-22)', (
-    WidgetTester tester,
-  ) async {
-    final AppDatabase db = await pumpAppWithDb(tester);
-    // One day per week (Wednesday), teaching starts Wednesday Sep 9 →
-    // prorated week allowance is exactly 1 with no carry.
-    final String idA = await seedStudent(
-      db,
-      name: 'Solo One',
-      weeklyDays: 1,
-      weekdays: const <Weekday>[Weekday.wednesday],
-      startDate: DateTime(2026, 9, 9),
-    );
-    final DriftAttendanceRepository attendance = DriftAttendanceRepository(db);
-    await attendance.add(
-      studentId: idA,
-      attendanceDate: DateTime.utc(2026, 9, 9),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'attendance is recordable on any weekday with no weekly cap (v1.2)',
+    (WidgetTester tester) async {
+      final AppDatabase db = await pumpAppWithDb(tester);
+      // One day per week, teaching starts Wednesday Sep 9, no weekday
+      // preference — every day of the week must be recordable.
+      final String idA = await seedStudent(
+        db,
+        name: 'Solo One',
+        weeklyDays: 1,
+        weekdays: const <Weekday>[],
+        startDate: DateTime(2026, 9, 9),
+      );
+      await tester.pumpAndSettle();
 
-    // Open Sep 10 (same week) and try to add beyond the cap.
-    await tester.tap(find.byKey(const Key('cal-day-2026-09-10')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('add-attendance-fab')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('1 of 1 used'), findsOneWidget);
+      for (final int day in <int>[9, 10, 11, 12, 13, 14, 15]) {
+        final String paddedDay = day.toString().padLeft(2, '0');
+        await tester.tap(find.byKey(Key('cal-day-2026-09-$paddedDay')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('add-attendance-fab')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(Key('picker-row-$idA')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(Key('attendance-card-$idA')), findsOneWidget);
+        // Close the sheet and go back to the calendar for the next day.
+        await tester.tapAt(const Offset(400, 20));
+        await tester.pumpAndSettle();
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+      }
 
-    await tester.tap(find.byKey(Key('picker-row-$idA')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.textContaining('Weekly limit reached: Solo One allows 1 visit'),
-      findsOneWidget,
-    );
-    // Blocked — nothing was recorded for Sep 10.
-    expect(
-      await DriftAttendanceRepository(db).forDate(DateTime.utc(2026, 9, 10)),
-      isEmpty,
-    );
-    await disposeApp(tester);
-  });
+      expect(
+        await DriftAttendanceRepository(db).forStudentBetween(
+          idA,
+          DateTime.utc(2026, 9, 9),
+          DateTime.utc(2026, 9, 15),
+        ),
+        hasLength(7),
+      );
+      await disposeApp(tester);
+    },
+  );
 }

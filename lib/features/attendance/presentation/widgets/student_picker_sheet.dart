@@ -7,14 +7,12 @@ import '../../../../domain/repositories/attendance_repository.dart';
 import '../../../../domain/services/attendance_workflow_service.dart';
 import '../providers.dart';
 
-/// Bottom sheet listing currently-teaching students with their weekly
-/// allowance for the picked date (PRD §9.3).
+/// Bottom sheet listing currently-teaching students (PRD §9.3).
 ///
-/// - tapping an unrecorded student adds attendance (a confirmation dialog
-///   appears first when the weekly routine is already fulfilled);
-/// - tapping a recorded student surfaces duplicate protection
-///   (PRD §11.5 UI level);
-/// - the sheet stays open so several students can be recorded in a row.
+/// v1.2: attendance may be recorded for any student on any date — the
+/// weekly cap was removed. Tapping a recorded student surfaces duplicate
+/// protection (PRD §11.5 UI level); the sheet stays open so several
+/// students can be recorded in a row.
 class StudentPickerSheet extends ConsumerStatefulWidget {
   const StudentPickerSheet({required this.isoDate, super.key});
 
@@ -26,6 +24,7 @@ class StudentPickerSheet extends ConsumerStatefulWidget {
 
 class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
   late final Future<List<AttendanceCandidate>> _candidates;
+  List<AttendanceCandidate>? _savedCandidates;
 
   @override
   void initState() {
@@ -45,8 +44,6 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
       setState(() => _savedCandidates = fresh);
     }
   }
-
-  List<AttendanceCandidate>? _savedCandidates;
 
   @override
   Widget build(BuildContext context) {
@@ -82,13 +79,7 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
-                    Expanded(
-                      child: _content(
-                        context,
-                        snapshot.connectionState,
-                        candidates,
-                      ),
-                    ),
+                    Expanded(child: _content(context, candidates)),
                   ],
                 ),
               ),
@@ -97,11 +88,7 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
     );
   }
 
-  Widget _content(
-    BuildContext context,
-    ConnectionState connectionState,
-    List<AttendanceCandidate>? candidates,
-  ) {
+  Widget _content(BuildContext context, List<AttendanceCandidate>? candidates) {
     if (candidates == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -136,25 +123,6 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
       return;
     }
 
-    // BR-10/AC-22: the weekly cap (routine + carry-over) is a hard block
-    // with the weekly-limit message (PRD §18) — extra attendance beyond the
-    // recovered allowance must not be possible.
-    if (!candidate.allowance.canAddAttendance) {
-      final int carry = candidate.allowance.carriedOver;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Weekly limit reached: ${candidate.student.name} allows '
-            '${candidate.allowance.maxAttendance} '
-            'visit${candidate.allowance.maxAttendance == 1 ? '' : 's'} this '
-            'week.'
-            '${carry > 0 ? ' Recovered carry-over used: $carry.' : ''}',
-          ),
-        ),
-      );
-      return;
-    }
-
     try {
       await ref
           .read(attendanceWorkflowServiceProvider)
@@ -180,21 +148,6 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
           ),
         );
       }
-    } on WeeklyLimitExceededException {
-      // Stale picker state — surface the weekly-limit message.
-      await _reload();
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Weekly limit reached: ${candidate.student.name} allows '
-              '${candidate.allowance.maxAttendance} '
-              'visit${candidate.allowance.maxAttendance == 1 ? '' : 's'} this '
-              'week.',
-            ),
-          ),
-        );
-      }
     }
   }
 }
@@ -208,13 +161,8 @@ class _PickerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final String carried = candidate.allowance.carriedOver > 0
-        ? ' · +${candidate.allowance.carriedOver} carried'
-        : '';
-    final String subtitle = candidate.allowance.weeklyDays == 0
-        ? 'No routine this week'
-        : '${candidate.allowance.usedThisWeek} of '
-              '${candidate.allowance.weeklyDays} used this week$carried';
+    final int days = candidate.student.weeklyDays;
+    final String subtitle = '$days day${days == 1 ? '' : 's'} per week';
 
     return ListTile(
       key: Key('picker-row-${candidate.student.id}'),

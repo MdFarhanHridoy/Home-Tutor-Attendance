@@ -269,7 +269,7 @@ class StudentManagementService {
   void _validate({
     required String name,
     required int weeklyDays,
-    required List<Weekday> weekdays,
+    List<Weekday>? weekdays,
   }) {
     if (name.trim().isEmpty) {
       throw ArgumentError('Student name is required');
@@ -277,13 +277,9 @@ class StudentManagementService {
     if (weeklyDays < 1 || weeklyDays > 7) {
       throw ArgumentError('Weekly days must be between 1 and 7');
     }
-    if (weekdays.length != weeklyDays) {
-      throw ArgumentError(
-        'Exactly $weeklyDays routine weekdays must be selected '
-        '(${weekdays.length} selected)',
-      );
-    }
-    if (weekdays.toSet().length != weekdays.length) {
+    // Routine weekdays are OPTIONAL (v1.2): the routine is defined by the
+    // days-per-week count; weekdays, when provided, are informational.
+    if (weekdays != null && weekdays.toSet().length != weekdays.length) {
       throw ArgumentError('Routine weekdays must be unique');
     }
   }

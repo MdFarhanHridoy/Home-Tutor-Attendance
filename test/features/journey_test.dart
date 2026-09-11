@@ -81,13 +81,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    // Started Sep 10 with a M/W/F routine: September scheduled = 9
-    // (Mon×3 + Wed×3 + Fri×3 from the 11th onward) → 1/9 ≈ 11%. The
-    // single student's row and the month's overall header match.
+    // Started Sep 10 with 3 days/week → flat monthly target 3 × 4 = 12
+    // (v1.2). The single student's row and the month's overall header match.
     expect(
       find.descendant(
         of: find.byKey(const Key('goal-month-2026-09')),
-        matching: find.text('1 / 9 · 11%'),
+        matching: find.text('1 / 12 · 8%'),
       ),
       findsWidgets,
     );

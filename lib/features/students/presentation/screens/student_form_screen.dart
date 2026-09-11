@@ -77,8 +77,6 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
     _currentlyTeaching = student.currentlyTeaching;
   }
 
-  bool get _routineValid => _selectedWeekdays.length == _weeklyDays;
-
   Future<void> _pickStartDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -92,7 +90,11 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || !_routineValid) {
+    // Edit mode must finish hydrating before saving.
+    if (_isEdit && !_initialized) {
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
       return;
     }
     setState(() => _saving = true);
@@ -259,12 +261,17 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              _routineValid
-                  ? 'Routine weekdays'
-                  : 'Routine weekdays — select $_weeklyDays '
-                        '(${_selectedWeekdays.length} selected)',
+              'Preferred weekdays (optional)',
               key: const Key('weekday-hint'),
               style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'You can record attendance on any day — these are just a '
+              'reminder of your usual plan.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -353,12 +360,6 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
               maxLines: 3,
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              key: const Key('student-save-button'),
-              onPressed: _saving || !_routineValid ? null : _save,
-              child: Text(_saving ? 'Saving…' : 'Save student'),
-            ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -369,6 +370,17 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit student' : 'Add student')),
       body: body,
+      // The save action is pinned at the bottom: always visible and
+      // reachable without scrolling, so validation errors near the top of
+      // the form stay on screen.
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: FilledButton(
+          key: const Key('student-save-button'),
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Saving…' : 'Save student'),
+        ),
+      ),
     );
   }
 }

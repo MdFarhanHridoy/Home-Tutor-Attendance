@@ -20,8 +20,6 @@ void main() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     service = AttendanceWorkflowService(
       studentsRepository: DriftStudentsRepository(db),
-      teachingPeriodsRepository: DriftTeachingPeriodsRepository(db),
-      routinePeriodsRepository: DriftRoutinePeriodsRepository(db),
       attendanceRepository: DriftAttendanceRepository(db),
     );
     students = StudentManagementService(
@@ -44,14 +42,14 @@ void main() {
   test(
     'picker candidates list teaching students alphabetically with status',
     () async {
-      final studentB = await students.createStudent(
+      await students.createStudent(
         name: 'Bravo',
         weeklyDays: 3,
         routineWeekdays: monWedFri,
         color: '0xFFEF5350',
         startDate: DateTime.utc(2026, 8, 1),
       );
-      final studentA = await students.createStudent(
+      await students.createStudent(
         name: 'Alpha',
         weeklyDays: 2,
         routineWeekdays: const <Weekday>[Weekday.tuesday, Weekday.thursday],
@@ -71,22 +69,12 @@ void main() {
         teaching: false,
       );
 
-      // One record for Bravo earlier in the queried week.
-      await DriftAttendanceRepository(
-        db,
-      ).add(studentId: studentB.id, attendanceDate: DateTime.utc(2026, 9, 7));
-
       final candidates = await service.pickerCandidatesForDate(
         DateTime.utc(2026, 9, 9),
       );
 
       expect(candidates.map((c) => c.student.name), <String>['Alpha', 'Bravo']);
-      final alpha = candidates.firstWhere((c) => c.student.id == studentA.id);
-      final bravo = candidates.firstWhere((c) => c.student.id == studentB.id);
-      expect(alpha.recorded, isFalse);
-      expect(alpha.allowance.weeklyDays, 2);
-      expect(bravo.allowance.usedThisWeek, 1); // Sep 7 is in the same week
-      expect(bravo.recorded, isFalse); // Sep 7 != Sep 9
+      expect(candidates.every((c) => !c.recorded), isTrue);
     },
   );
 
@@ -112,38 +100,33 @@ void main() {
 
     expect(sameDay.single.recorded, isTrue);
     expect(otherDay.single.recorded, isFalse);
-    // The whole Friday-first week counts toward usedThisWeek (Edge 11).
-    expect(otherDay.single.allowance.usedThisWeek, 1);
   });
 
   test(
-    'addAttendance blocks beyond weekly allowance + carry (AC-22)',
+    'attendance on ANY weekday is allowed with no weekly limit (v1.2)',
     () async {
       final student = await students.createStudent(
-        name: 'Solo',
+        name: 'Alpha',
         weeklyDays: 1,
-        routineWeekdays: const <Weekday>[Weekday.friday],
+        routineWeekdays: const <Weekday>[], // no weekday preference at all
         color: '0xFF42A5F5',
-        startDate: DateTime.utc(2026, 9, 4),
+        startDate: DateTime.utc(2026, 9, 9),
       );
 
-      // First Friday is allowed; the same week is capped at 1.
-      await service.addAttendance(
-        studentId: student.id,
-        date: DateTime.utc(2026, 9, 4),
-      );
-      expect(
-        () => service.addAttendance(
+      // Record on every day of the week — all succeed; no cap exists.
+      for (int day = 9; day <= 15; day++) {
+        await service.addAttendance(
           studentId: student.id,
-          date: DateTime.utc(2026, 9, 5),
+          date: DateTime.utc(2026, 9, day),
+        );
+      }
+      expect(
+        await DriftAttendanceRepository(db).forStudentBetween(
+          student.id,
+          DateTime.utc(2026, 9, 9),
+          DateTime.utc(2026, 9, 15),
         ),
-        throwsA(isA<WeeklyLimitExceededException>()),
-      );
-
-      // The next week starts fresh.
-      await service.addAttendance(
-        studentId: student.id,
-        date: DateTime.utc(2026, 9, 11),
+        hasLength(7),
       );
     },
   );

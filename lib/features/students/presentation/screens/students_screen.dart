@@ -168,9 +168,10 @@ class _StudentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String routineSummary =
-        '${student.weeklyDays} days/week · '
-        '${AppDateFormats.weekdayList(student.routineWeekdays.map((Weekday w) => w.shortLabel))}';
+    final String routineSummary = student.routineWeekdays.isEmpty
+        ? '${student.weeklyDays} days/week'
+        : '${student.weeklyDays} days/week · '
+              '${AppDateFormats.weekdayList(student.routineWeekdays.map((Weekday w) => w.shortLabel))}';
 
     return ListTile(
       leading: Container(

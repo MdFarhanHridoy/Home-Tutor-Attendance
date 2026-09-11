@@ -51,7 +51,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('goal-month-2026-09')),
-        matching: find.text('5 / 13 · 38%'),
+        matching: find.text('5 / 12 · 42%'),
       ),
       findsWidgets,
     );

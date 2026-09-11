@@ -1,11 +1,9 @@
-import '../../core/utils/date_util.dart';
 import '../entities/attendance_record.dart';
 import '../entities/routine_period.dart';
 import '../entities/student.dart';
 import '../entities/teaching_period.dart';
 import '../entities/year_month.dart';
 import 'monthly_summary_service.dart';
-import 'scheduled_days_service.dart';
 import 'teaching_period_service.dart';
 
 /// One student's row inside a month card of the goal screen.
@@ -18,15 +16,19 @@ class StudentMonthGoal {
 
   final Student student;
   final int attendedCount;
+
+  /// Monthly target: `weekly_days × 4` (PRD v1.2 amendment) — a flat target
+  /// for every month the student's teaching period overlaps, regardless of
+  /// the start date within the month.
   final int scheduledCount;
 
-  /// Attended ÷ scheduled as a percentage; null when nothing was scheduled
-  /// (rendered as "—", never 0%) (PRD §13.5).
+  /// Attended ÷ target as a percentage; null when the target is 0
+  /// (rendered as "—", never 0%).
   double? get percentage =>
       scheduledCount == 0 ? null : attendedCount / scheduledCount * 100;
 }
 
-/// One month of the six-month goal view (PRD §9.8, §44).
+/// One month of the six-month goal view (PRD §9.8, §44, v1.2 amendment).
 class MonthGoalSummary {
   const MonthGoalSummary({required this.month, required this.students});
 
@@ -43,26 +45,23 @@ class MonthGoalSummary {
       totalScheduled == 0 ? null : totalAttended / totalScheduled * 100;
 }
 
-/// Assembles the six-month goal view from loaded data (PRD §9.8).
+/// Assembles the six-month goal view from loaded data (PRD §9.8, v1.2).
 ///
-/// Visibility rule: a student appears in a month when any of their teaching
-/// periods overlaps that month (activeFrom <= monthEnd AND (activeTo IS NULL
-/// OR activeTo >= monthStart)) — inactive students therefore keep appearing
-/// in historical months. Scheduled days come from the routine effective on
-/// each date (history never rewritten), and actual attendance counts unique
-/// dates, uncapped by the schedule.
+/// Visibility rule (unchanged): a student appears in a month when any of
+/// their teaching periods overlaps that month. Monthly target (v1.2):
+/// `weekly_days × 4` from the routine period with the latest start date
+/// that overlaps the month (falling back to the student's current
+/// snapshot); the target does not prorate for mid-month starts. Actual
+/// attendance counts unique dates and may exceed the target (14/12).
 class MonthlyGoalService {
   const MonthlyGoalService({
     MonthlySummaryService summaryService = const MonthlySummaryService(),
     TeachingPeriodService teachingPeriodService = const TeachingPeriodService(),
-    ScheduledDaysService scheduledDaysService = const ScheduledDaysService(),
   }) : _summaries = summaryService,
-       _teachingPeriods = teachingPeriodService,
-       _scheduledDays = scheduledDaysService;
+       _teachingPeriods = teachingPeriodService;
 
   final MonthlySummaryService _summaries;
   final TeachingPeriodService _teachingPeriods;
-  final ScheduledDaysService _scheduledDays;
 
   /// Builds the six month summaries ending at [referenceDate]'s month,
   /// newest first. All inputs are pre-loaded by the caller.
@@ -73,9 +72,7 @@ class MonthlyGoalService {
     required Map<String, List<RoutinePeriod>> routines,
     required List<AttendanceRecord> attendance,
   }) {
-    final List<YearMonth> months = _summaries.lastSixMonths(
-      DateUtil.dateOnly(referenceDate),
-    );
+    final List<YearMonth> months = _summaries.lastSixMonths(referenceDate);
 
     return <MonthGoalSummary>[
       for (final YearMonth month in months)
@@ -98,15 +95,13 @@ class MonthlyGoalService {
                             .toList(),
                         month,
                       ),
-                      scheduledCount: _scheduledDays.scheduledCount(
-                        periods:
-                            teachingPeriods[student.id] ??
-                            const <TeachingPeriod>[],
-                        routines:
+                      scheduledCount:
+                          4 *
+                          _weeklyDaysForMonth(
+                            month,
                             routines[student.id] ?? const <RoutinePeriod>[],
-                        rangeStart: month.monthStart,
-                        rangeEnd: month.monthEnd,
-                      ),
+                            student.weeklyDays,
+                          ),
                     ),
               ]..sort(
                 (StudentMonthGoal a, StudentMonthGoal b) =>
@@ -114,6 +109,30 @@ class MonthlyGoalService {
               ),
         ),
     ];
+  }
+
+  /// The weekly rate in effect for [month]: the routine period with the
+  /// latest start date that overlaps the month (routine history), falling
+  /// back to the student's current snapshot.
+  int _weeklyDaysForMonth(
+    YearMonth month,
+    List<RoutinePeriod> history,
+    int fallback,
+  ) {
+    RoutinePeriod? latest;
+    for (final RoutinePeriod routine in history) {
+      if (routine.startDate.isAfter(month.monthEnd)) {
+        continue;
+      }
+      final DateTime? end = routine.endDate;
+      if (end != null && end.isBefore(month.monthStart)) {
+        continue;
+      }
+      if (latest == null || routine.startDate.isAfter(latest.startDate)) {
+        latest = routine;
+      }
+    }
+    return latest?.weeklyDays ?? fallback;
   }
 
   bool _overlapsMonth(List<TeachingPeriod> periods, YearMonth month) {
