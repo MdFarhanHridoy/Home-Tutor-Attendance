@@ -85,6 +85,27 @@ class DriftAttendanceRepository implements AttendanceRepository {
   }
 
   @override
+  Future<List<AttendanceRecord>> between(DateTime start, DateTime end) async {
+    final List<AttendanceRecordRow> rows =
+        await (_db.select(_db.attendanceRecords)
+              ..where(
+                ($AttendanceRecordsTable tbl) =>
+                    tbl.attendanceDate.isBetweenValues(
+                      DateUtil.toIsoDate(start),
+                      DateUtil.toIsoDate(end),
+                    ),
+              )
+              ..orderBy(([
+                ($AttendanceRecordsTable tbl) =>
+                    OrderingTerm(expression: tbl.attendanceDate),
+                ($AttendanceRecordsTable tbl) =>
+                    OrderingTerm(expression: tbl.studentId),
+              ])))
+            .get();
+    return rows.map(_toEntity).toList();
+  }
+
+  @override
   Future<List<AttendanceRecord>> forStudentBetween(
     String studentId,
     DateTime start,

@@ -117,10 +117,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('9 Sep 2026'), findsOneWidget);
-    expect(
-      find.text('Attendance for this date will appear here.'),
-      findsOneWidget,
-    );
+    expect(find.text('No attendance recorded for this date'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();

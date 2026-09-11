@@ -38,6 +38,10 @@ abstract class AttendanceRepository {
   /// All records on a date.
   Future<List<AttendanceRecord>> forDate(DateTime date);
 
+  /// All records of ALL students inside [start, end] (inclusive), sorted by
+  /// date then student ID.
+  Future<List<AttendanceRecord>> between(DateTime start, DateTime end);
+
   /// All records of one student inside [start, end] (inclusive).
   Future<List<AttendanceRecord>> forStudentBetween(
     String studentId,
