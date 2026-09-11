@@ -73,10 +73,7 @@ void main() {
     await openDrawer(tester);
     await tester.tap(drawerText('Monthly Attendance Goal'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Six-month attendance summary will appear here.'),
-      findsOneWidget,
-    );
+    expect(find.text('No attendance data yet'), findsOneWidget);
 
     await systemBack(tester);
 
