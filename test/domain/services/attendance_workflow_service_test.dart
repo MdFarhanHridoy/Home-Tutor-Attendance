@@ -20,6 +20,7 @@ void main() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     service = AttendanceWorkflowService(
       studentsRepository: DriftStudentsRepository(db),
+      teachingPeriodsRepository: DriftTeachingPeriodsRepository(db),
       routinePeriodsRepository: DriftRoutinePeriodsRepository(db),
       attendanceRepository: DriftAttendanceRepository(db),
     );
@@ -111,8 +112,41 @@ void main() {
 
     expect(sameDay.single.recorded, isTrue);
     expect(otherDay.single.recorded, isFalse);
+    // The whole Friday-first week counts toward usedThisWeek (Edge 11).
     expect(otherDay.single.allowance.usedThisWeek, 1);
   });
+
+  test(
+    'addAttendance blocks beyond weekly allowance + carry (AC-22)',
+    () async {
+      final student = await students.createStudent(
+        name: 'Solo',
+        weeklyDays: 1,
+        routineWeekdays: const <Weekday>[Weekday.friday],
+        color: '0xFF42A5F5',
+        startDate: DateTime.utc(2026, 9, 4),
+      );
+
+      // First Friday is allowed; the same week is capped at 1.
+      await service.addAttendance(
+        studentId: student.id,
+        date: DateTime.utc(2026, 9, 4),
+      );
+      expect(
+        () => service.addAttendance(
+          studentId: student.id,
+          date: DateTime.utc(2026, 9, 5),
+        ),
+        throwsA(isA<WeeklyLimitExceededException>()),
+      );
+
+      // The next week starts fresh.
+      await service.addAttendance(
+        studentId: student.id,
+        date: DateTime.utc(2026, 9, 11),
+      );
+    },
+  );
 
   test('addAttendance enforces duplicates via the domain guard', () async {
     final student = await students.createStudent(

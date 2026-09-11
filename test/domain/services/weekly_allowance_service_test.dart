@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:home_tutor_attendance/domain/entities/attendance_record.dart';
 import 'package:home_tutor_attendance/domain/entities/routine_period.dart';
+import 'package:home_tutor_attendance/domain/entities/teaching_period.dart';
 import 'package:home_tutor_attendance/domain/entities/weekday.dart';
 import 'package:home_tutor_attendance/domain/services/weekly_allowance_service.dart';
 
@@ -11,24 +12,35 @@ const List<Weekday> monWedFri = <Weekday>[
   Weekday.friday,
 ];
 
+TeachingPeriod teaching(String id, DateTime start, {DateTime? end}) =>
+    TeachingPeriod(
+      id: id,
+      studentId: 's1',
+      startDate: start,
+      endDate: end,
+      createdAt: DateTime.utc(2026, 1, 1),
+      updatedAt: DateTime.utc(2026, 1, 1),
+    );
+
 RoutinePeriod routine(
   String id,
-  DateTime start, {
-  DateTime? end,
+  DateTime start,
+  DateTime? end, {
   int weeklyDays = 3,
+  List<Weekday> weekdays = monWedFri,
 }) => RoutinePeriod(
   id: id,
   studentId: 's1',
   startDate: start,
   endDate: end,
   weeklyDays: weeklyDays,
-  weekdays: monWedFri,
+  weekdays: weekdays,
   createdAt: DateTime.utc(2026, 1, 1),
   updatedAt: DateTime.utc(2026, 1, 1),
 );
 
 AttendanceRecord record(DateTime date) => AttendanceRecord(
-  id: 'a-${date.day}',
+  id: 'a-${date.toIso8601String()}',
   studentId: 's1',
   attendanceDate: date,
   createdAt: DateTime.utc(2026, 9, 1),
@@ -38,18 +50,30 @@ AttendanceRecord record(DateTime date) => AttendanceRecord(
 void main() {
   const WeeklyAllowanceService service = WeeklyAllowanceService();
 
+  WeeklyAllowance compute({
+    required DateTime date,
+    List<TeachingPeriod> periods = const <TeachingPeriod>[],
+    List<RoutinePeriod> routines = const <RoutinePeriod>[],
+    List<AttendanceRecord> attendance = const <AttendanceRecord>[],
+  }) {
+    return service.compute(
+      date: date,
+      periods: periods,
+      routines: routines,
+      attendance: attendance,
+    );
+  }
+
   test('weeks run Friday to Thursday (BR-11)', () {
     // 2026-09-10 is a Thursday; its week starts Friday 2026-09-04.
     expect(
       service.weekStartOf(DateTime.utc(2026, 9, 10)),
       DateTime.utc(2026, 9, 4),
     );
-    // 2026-09-04 is the Friday itself.
     expect(
       service.weekStartOf(DateTime.utc(2026, 9, 4)),
       DateTime.utc(2026, 9, 4),
     );
-    // 2026-09-11 is the next Friday.
     expect(
       service.weekStartOf(DateTime.utc(2026, 9, 11)),
       DateTime.utc(2026, 9, 11),
@@ -57,55 +81,100 @@ void main() {
   });
 
   test('no effective routine yields zero allowance', () {
-    final WeeklyAllowance allowance = service.compute(
+    final allowance = compute(
       date: DateTime.utc(2026, 9, 10),
-      routines: <RoutinePeriod>[
-        routine('r1', DateTime.utc(2026, 8, 1), end: DateTime.utc(2026, 8, 31)),
+      periods: <TeachingPeriod>[
+        teaching(
+          't1',
+          DateTime.utc(2026, 8, 1),
+          end: DateTime.utc(2026, 8, 31),
+        ),
       ],
-      attendance: const <AttendanceRecord>[],
+      routines: <RoutinePeriod>[
+        routine('r1', DateTime.utc(2026, 8, 1), DateTime.utc(2026, 8, 31)),
+      ],
     );
 
     expect(allowance.weeklyDays, 0);
-    expect(allowance.allowance, 0);
-    expect(allowance.metRoutine, isFalse);
+    expect(allowance.maxAttendance, 0);
+    expect(allowance.canAddAttendance, isFalse);
   });
 
-  test('first week of a month has no carry', () {
-    // Routine since August; querying in September's first week.
-    final WeeklyAllowance allowance = service.compute(
-      date: DateTime.utc(
-        2026,
-        9,
-        4,
-      ), // Friday, first day of a week fully in Sept
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
-      attendance: const <AttendanceRecord>[],
+  test('first week of teaching has no carry', () {
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 8), // teaching starts Sep 7 (Monday)
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 7))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 7), null)],
     );
 
     expect(allowance.carriedOver, 0);
     expect(allowance.weeklyDays, 3);
-    expect(allowance.remaining, 3);
+    // Active part of the week Sep 4-10 is Sep 7-10: Mon + Wed → prorated 2.
+    expect(allowance.weekAllowance, 2);
+    expect(allowance.maxAttendance, 2);
+    expect(allowance.canAddAttendance, isTrue);
   });
 
-  test('unused days carry forward within the month', () {
-    // Week of Sep 4-10: one record used (allowance 3) → carry 2 into
-    // the week of Sep 11-17.
-    final WeeklyAllowance allowance = service.compute(
-      date: DateTime.utc(2026, 9, 15),
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
+  test('unused days carry forward to the following week (AC-23)', () {
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 15), // week Sep 11-17
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 4))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 4), null)],
       attendance: <AttendanceRecord>[record(DateTime.utc(2026, 9, 7))],
     );
 
+    // Week Sep 4-10: allowance 3, attended 1 → deficit 2 carried.
     expect(allowance.carriedOver, 2);
-    expect(allowance.allowance, 5);
+    expect(allowance.maxAttendance, 5);
     expect(allowance.remaining, 5);
   });
 
-  test('overuse never produces negative carry', () {
-    // Week of Sep 4-10: five records (over the 3-day cap) → carry 0.
-    final WeeklyAllowance allowance = service.compute(
+  test(
+    'carry does not reset at calendar-month boundaries (Edge Case 11)',
+    () async {
+      // Teaching from Friday Aug 7, one Friday per week, no attendance:
+      // every completed week accrues deficit 1.
+      final allowance = compute(
+        date: DateTime.utc(2026, 9, 8),
+        periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 8, 7))],
+        routines: <RoutinePeriod>[
+          routine(
+            'r1',
+            DateTime.utc(2026, 8, 7),
+            null,
+            weeklyDays: 1,
+            weekdays: const <Weekday>[Weekday.friday],
+          ),
+        ],
+      );
+
+      // Completed active weeks: Aug 7, 14, 21, 28 → carry 4 into September.
+      expect(allowance.carriedOver, 4);
+      expect(allowance.maxAttendance, 5);
+    },
+  );
+
+  test('a week spanning a month boundary is one allowance window', () {
+    // Records Aug 31 (Monday) and Sep 1 (Tuesday) belong to the same
+    // Friday-first week (Aug 28 – Sep 3).
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 2),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 8, 1))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1), null)],
+      attendance: <AttendanceRecord>[
+        record(DateTime.utc(2026, 8, 31)),
+        record(DateTime.utc(2026, 9, 1)),
+      ],
+    );
+
+    expect(allowance.usedThisWeek, 2);
+  });
+
+  test('overuse never produces carry', () {
+    final allowance = compute(
       date: DateTime.utc(2026, 9, 15),
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 4))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 4), null)],
       attendance: <AttendanceRecord>[
         record(DateTime.utc(2026, 9, 4)),
         record(DateTime.utc(2026, 9, 5)),
@@ -116,98 +185,98 @@ void main() {
     );
 
     expect(allowance.carriedOver, 0);
-    expect(allowance.allowance, 3);
+    expect(allowance.maxAttendance, 3);
   });
 
-  test('usedThisWeek counts only through the queried date', () {
-    final WeeklyAllowance allowance = service.compute(
-      date: DateTime.utc(2026, 9, 15), // Tuesday
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
-      attendance: <AttendanceRecord>[
-        record(DateTime.utc(2026, 9, 14)), // Monday — same week, counted
-        record(DateTime.utc(2026, 9, 17)), // Thursday — same week, later
-      ],
-    );
+  test(
+    'partial first week prorates to routine weekdays inside the active part',
+    () {
+      // Teaching starts Wednesday Sep 9; routine M/W/F. Active part of the
+      // week Sep 4-10 is Sep 9-10 → only Wednesday qualifies → allowance 1.
+      final allowance = compute(
+        date: DateTime.utc(2026, 9, 10),
+        periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 9))],
+        routines: <RoutinePeriod>[
+          routine('r1', DateTime.utc(2026, 9, 9), null),
+        ],
+      );
 
-    expect(allowance.usedThisWeek, 1);
-  });
+      expect(allowance.weekAllowance, 1);
+      expect(allowance.maxAttendance, 1);
+    },
+  );
 
-  test('routine change resets carried-over allowance', () {
-    // One routine until Sep 10 with a single used day, then a NEW routine
-    // from Sep 11 — carry must reset.
-    final WeeklyAllowance allowance = service.compute(
-      date: DateTime.utc(2026, 9, 15),
-      routines: <RoutinePeriod>[
-        routine('r1', DateTime.utc(2026, 8, 1), end: DateTime.utc(2026, 9, 10)),
-        routine('r2', DateTime.utc(2026, 9, 11)),
-      ],
-      attendance: <AttendanceRecord>[record(DateTime.utc(2026, 9, 7))],
-    );
+  test(
+    'stopping teaching resets carry; reactivation starts fresh (Edge 12)',
+    () {
+      final allowance = compute(
+        date: DateTime.utc(2026, 9, 24),
+        periods: <TeachingPeriod>[
+          teaching(
+            't1',
+            DateTime.utc(2026, 8, 7),
+            end: DateTime.utc(2026, 9, 4),
+          ),
+          teaching('t2', DateTime.utc(2026, 9, 18)),
+        ],
+        routines: <RoutinePeriod>[
+          routine('r1', DateTime.utc(2026, 8, 7), DateTime.utc(2026, 9, 4)),
+          routine('r2', DateTime.utc(2026, 9, 18), null),
+        ],
+        attendance: <AttendanceRecord>[record(DateTime.utc(2026, 8, 10))],
+      );
 
-    expect(allowance.carriedOver, 0);
-    expect(allowance.routineId, 'r2');
-    expect(allowance.allowance, 3);
-  });
+      expect(allowance.carriedOver, 0);
+      expect(allowance.routineId, 'r2');
+    },
+  );
 
-  test('teaching stop and resume resets carry (Edge Case 12)', () {
-    final WeeklyAllowance allowance = service.compute(
-      date: DateTime.utc(2026, 9, 15),
-      routines: <RoutinePeriod>[
-        routine('r1', DateTime.utc(2026, 8, 1), end: DateTime.utc(2026, 9, 6)),
-        routine('r2', DateTime.utc(2026, 9, 13)),
-      ],
-      attendance: <AttendanceRecord>[record(DateTime.utc(2026, 9, 4))],
-    );
-
-    expect(allowance.carriedOver, 0);
-    expect(allowance.routineId, 'r2');
-  });
-
-  test('metRoutine flags fulfilled routine for confirmation', () {
-    final WeeklyAllowance met = service.compute(
-      date: DateTime.utc(2026, 9, 8),
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
-      attendance: <AttendanceRecord>[
-        record(DateTime.utc(2026, 9, 4)),
-        record(DateTime.utc(2026, 9, 5)),
-        record(DateTime.utc(2026, 9, 6)),
-      ],
-    );
-    expect(met.metRoutine, isTrue);
-    expect(met.remaining, 0); // exactly fulfilled
-
-    final WeeklyAllowance exceeded = service.compute(
-      date: DateTime.utc(2026, 9, 8),
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
+  test('4th attendance without carry is blocked (AC-22)', () {
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 9),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 4))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 4), null)],
       attendance: <AttendanceRecord>[
         record(DateTime.utc(2026, 9, 4)),
-        record(DateTime.utc(2026, 9, 5)),
-        record(DateTime.utc(2026, 9, 6)),
         record(DateTime.utc(2026, 9, 7)),
+        record(DateTime.utc(2026, 9, 8)),
       ],
     );
-    expect(exceeded.metRoutine, isTrue);
-    expect(exceeded.remaining, isNegative);
 
-    final WeeklyAllowance notMet = service.compute(
-      date: DateTime.utc(2026, 9, 8),
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
-      attendance: <AttendanceRecord>[record(DateTime.utc(2026, 9, 4))],
-    );
-    expect(notMet.metRoutine, isFalse);
-    expect(notMet.remaining, 2);
+    expect(allowance.usedThisWeek, 3);
+    expect(allowance.maxAttendance, 3);
+    expect(allowance.canAddAttendance, isFalse);
   });
 
-  test('carry accumulates across multiple weeks within the month', () {
-    // Week Sep 4-10: 0 used → carry 3. Week Sep 11-17: 1 used → carry
-    // 3 + 3 - 1 = 5 into week Sep 18-24.
-    final WeeklyAllowance allowance = service.compute(
-      date: DateTime.utc(2026, 9, 22),
-      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 8, 1))],
-      attendance: <AttendanceRecord>[record(DateTime.utc(2026, 9, 14))],
+  test('non-routine weekday attendance consumes the allowance (AC-10)', () {
+    // Routine M/W/F; records on Mon + Tue (Tue is non-routine) both count.
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 10),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 4))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 4), null)],
+      attendance: <AttendanceRecord>[
+        record(DateTime.utc(2026, 9, 7)), // Monday
+        record(DateTime.utc(2026, 9, 8)), // Tuesday
+      ],
     );
 
-    expect(allowance.carriedOver, 5);
-    expect(allowance.allowance, 8);
+    expect(allowance.usedThisWeek, 2);
+    expect(allowance.remaining, 1);
+  });
+
+  test('carry accumulates across multiple missed weeks (§10.6 example)', () {
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 18), // week Sep 18-24
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 4))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 4), null)],
+      attendance: <AttendanceRecord>[
+        record(DateTime.utc(2026, 9, 7)), // week 1: 1 of 3
+        record(DateTime.utc(2026, 9, 14)), // week 2: 1 of 3 (+2 carry)
+      ],
+    );
+
+    // Week 1 deficit 2; week 2 allowance 5, used 1 → deficit 4.
+    expect(allowance.carriedOver, 4);
+    expect(allowance.maxAttendance, 7);
   });
 }

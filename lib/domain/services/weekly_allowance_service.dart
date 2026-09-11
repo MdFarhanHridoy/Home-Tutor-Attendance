@@ -3,59 +3,75 @@ import 'dart:math' as math;
 import '../../core/utils/date_util.dart';
 import '../entities/attendance_record.dart';
 import '../entities/routine_period.dart';
-import '../entities/year_month.dart';
+import '../entities/teaching_period.dart';
+import '../entities/weekday.dart';
 import 'routine_period_service.dart';
+import 'teaching_period_service.dart';
 
 /// Result of the weekly allowance computation for one student on one date.
 class WeeklyAllowance {
   const WeeklyAllowance({
     required this.weeklyDays,
+    required this.weekAllowance,
     required this.usedThisWeek,
     required this.carriedOver,
     this.routineId,
   });
 
-  /// Base weekly cap from the routine effective on the date (0 = no routine).
+  /// Base weekly cap of the routine effective on the date (0 = no routine).
   final int weeklyDays;
 
-  /// Attendance records in the current week, up to and including the date.
+  /// Prorated base allowance for the current week: the routine weekday
+  /// occurrences inside the ACTIVE part of the Friday–Thursday week
+  /// (Edge Case 13), capped at [weeklyDays].
+  final int weekAllowance;
+
+  /// Attendance records in the whole current Friday–Thursday week
+  /// (a week spanning a month boundary is a single allowance window,
+  /// Edge Case 11).
   final int usedThisWeek;
 
-  /// Unused allowance carried forward from earlier weeks of the same month
-  /// (PRD §10.6); resets on routine/teaching changes and month boundaries.
+  /// Unused allowance carried forward from earlier actively-taught weeks.
+  /// Does not expire while the student remains active and does not reset at
+  /// calendar-month boundaries; resets only when teaching stops (§10.6).
   final int carriedOver;
 
-  /// ID of the routine period the numbers were computed against.
   final String? routineId;
 
-  /// Total slots currently available (base + carry).
-  int get allowance => weeklyDays + carriedOver;
+  /// Total attendance days allowed in the current week (base + carry).
+  int get maxAttendance => weekAllowance + carriedOver;
 
-  /// Slots left; negative means the student already exceeded the routine.
-  int get remaining => allowance - usedThisWeek;
+  /// Days still recordable this week; negative means already exceeded.
+  int get remaining => maxAttendance - usedThisWeek;
 
-  /// Whether the routine (including carry-over) is already fulfilled —
-  /// adding more attendance requires the tutor's explicit confirmation.
-  bool get metRoutine => usedThisWeek >= allowance && weeklyDays > 0;
+  /// Whether one more attendance may be recorded (BR-10, AC-22).
+  bool get canAddAttendance => remaining > 0;
 }
 
-/// Computes the weekly routine allowance with carry-over (PRD §10.6, BR-10).
+/// Weekly attendance cap with carry-over recovery — the authoritative rule
+/// of PRD §10.6 (v1.1):
 ///
-/// Rules:
-/// - weeks run Friday → Thursday (BR-11);
-/// - the cap for a week is the weeklyDays of the routine effective on the
-///   date, plus unused allowance carried from earlier weeks of the SAME
-///   month;
-/// - carry resets whenever the routine period changes or teaching stopped
-///   for any intermediate week (Edge Case 12) — carry never crosses months;
-/// - attendance beyond the cap is never blocked, only surfaced via
-///   [WeeklyAllowance.metRoutine] so the UI can ask for confirmation.
+/// - weeks run Friday → Thursday regardless of calendar months;
+/// - `weekAllowance(week) = min(weekly_days, routine-weekday occurrences
+///   inside the active part of that week)`;
+/// - `carryOver(next) = carryOver(current) + max(0, allowance - attended)`
+///   for weeks the student was actively taught; carry never expires while
+///   active and never resets at month boundaries;
+/// - carry resets to 0 for weeks without active teaching (stop → reset,
+///   re-activation starts fresh — Edge Case 12);
+/// - `maxAttendance(week) = weekAllowance + carryOver`; the app must BLOCK
+///   additions beyond it (Edge Case 14, AC-22);
+/// - attendance on non-routine weekdays is allowed but consumes the
+///   allowance (AC-10/AC-23).
 class WeeklyAllowanceService {
   const WeeklyAllowanceService({
     RoutinePeriodService routinePeriodService = const RoutinePeriodService(),
-  }) : _routines = routinePeriodService;
+    TeachingPeriodService teachingPeriodService = const TeachingPeriodService(),
+  }) : _routines = routinePeriodService,
+       _teachingPeriods = teachingPeriodService;
 
   final RoutinePeriodService _routines;
+  final TeachingPeriodService _teachingPeriods;
 
   /// Start of the Friday-first week containing [date].
   DateTime weekStartOf(DateTime date) {
@@ -64,10 +80,11 @@ class WeeklyAllowanceService {
     return DateUtil.addDays(day, -offset);
   }
 
-  /// Allowance for [date] given the student's full routine history and
-  /// attendance records of the surrounding month.
+  /// Allowance for [date] given the student's full teaching/routine history
+  /// and attendance records.
   WeeklyAllowance compute({
     required DateTime date,
+    required List<TeachingPeriod> periods,
     required List<RoutinePeriod> routines,
     required List<AttendanceRecord> attendance,
   }) {
@@ -76,45 +93,133 @@ class WeeklyAllowanceService {
     if (current == null) {
       return const WeeklyAllowance(
         weeklyDays: 0,
+        weekAllowance: 0,
         usedThisWeek: 0,
         carriedOver: 0,
       );
     }
 
-    final DateTime currentWeekStart = weekStartOf(day);
-    final DateTime monthStart = YearMonth.fromDateTime(day).monthStart;
+    final DateTime weekStart = weekStartOf(day);
+    final DateTime weekEnd = DateUtil.addDays(weekStart, 6);
+    final int usedThisWeek = _countInRange(attendance, weekStart, weekEnd);
 
-    // Walk complete weeks of the month, earliest first. The partial week
-    // containing the 1st may span the previous month — it never earns
-    // carry (carry stays within the month, PRD §10.6).
-    DateTime weekStart = weekStartOf(monthStart);
-    if (weekStart.isBefore(monthStart)) {
-      weekStart = DateUtil.addDays(weekStart, 7);
-    }
-    int carry = 0;
-    while (weekStart.isBefore(currentWeekStart)) {
-      final DateTime weekEnd = DateUtil.addDays(weekStart, 6);
-      final RoutinePeriod? weekRoutine = _routines.effectiveOn(
-        routines,
-        weekEnd,
-      );
-      if (weekRoutine == null || weekRoutine.id != current.id) {
-        // Teaching stopped or the routine changed — carry resets.
-        carry = 0;
-      } else {
-        final int used = _countInRange(attendance, weekStart, weekEnd);
-        carry = math.max(0, current.weeklyDays + carry - used);
+    // Walk every completed week from the start of the student's history,
+    // accumulating carry. Weeks without active teaching reset the carry.
+    DateTime? earliest;
+    for (final TeachingPeriod period in periods) {
+      if (earliest == null || period.startDate.isBefore(earliest)) {
+        earliest = period.startDate;
       }
-      weekStart = DateUtil.addDays(weekStart, 7);
+    }
+    for (final RoutinePeriod routine in routines) {
+      if (earliest == null || routine.startDate.isBefore(earliest)) {
+        earliest = routine.startDate;
+      }
+    }
+    if (earliest == null) {
+      return WeeklyAllowance(
+        weeklyDays: current.weeklyDays,
+        weekAllowance: 0,
+        usedThisWeek: usedThisWeek,
+        carriedOver: 0,
+        routineId: current.id,
+      );
     }
 
-    final int usedThisWeek = _countInRange(attendance, currentWeekStart, day);
+    int carry = 0;
+    DateTime cursor = weekStartOf(earliest);
+    while (cursor.isBefore(weekStart)) {
+      final DateTime cursorEnd = DateUtil.addDays(cursor, 6);
+      if (_hasActiveDay(cursor, cursorEnd, periods, routines)) {
+        final RoutinePeriod? capRoutine = _routines.effectiveOn(
+          routines,
+          cursorEnd,
+        );
+        final int cap = capRoutine?.weeklyDays ?? current.weeklyDays;
+        final int allowance = _weekAllowance(
+          cursor,
+          cursorEnd,
+          cap,
+          periods,
+          routines,
+        );
+        final int used = _countInRange(attendance, cursor, cursorEnd);
+        carry += math.max(0, allowance - used);
+      } else {
+        carry = 0; // teaching stopped — reset (Edge Case 12)
+      }
+      cursor = DateUtil.addDays(cursor, 7);
+    }
+
     return WeeklyAllowance(
       weeklyDays: current.weeklyDays,
+      weekAllowance: _weekAllowance(
+        weekStart,
+        weekEnd,
+        current.weeklyDays,
+        periods,
+        routines,
+      ),
       usedThisWeek: usedThisWeek,
       carriedOver: carry,
       routineId: current.id,
     );
+  }
+
+  /// Whether any day in the week is covered by both a teaching period and
+  /// an effective routine ("actively taught", §10.6).
+  bool _hasActiveDay(
+    DateTime weekStart,
+    DateTime weekEnd,
+    List<TeachingPeriod> periods,
+    List<RoutinePeriod> routines,
+  ) {
+    for (
+      DateTime day = weekStart;
+      !day.isAfter(weekEnd);
+      day = DateUtil.addDays(day, 1)
+    ) {
+      final bool teaching = periods.any(
+        (TeachingPeriod period) => _teachingPeriods.coversDate(period, day),
+      );
+      if (!teaching) {
+        continue;
+      }
+      if (_routines.effectiveOn(routines, day) != null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Routine-weekday occurrences inside the ACTIVE part of the week,
+  /// capped at [cap] (PRD §10.6 formula).
+  int _weekAllowance(
+    DateTime weekStart,
+    DateTime weekEnd,
+    int cap,
+    List<TeachingPeriod> periods,
+    List<RoutinePeriod> routines,
+  ) {
+    int occurrences = 0;
+    for (
+      DateTime day = weekStart;
+      !day.isAfter(weekEnd);
+      day = DateUtil.addDays(day, 1)
+    ) {
+      final bool teaching = periods.any(
+        (TeachingPeriod period) => _teachingPeriods.coversDate(period, day),
+      );
+      if (!teaching) {
+        continue;
+      }
+      final RoutinePeriod? routine = _routines.effectiveOn(routines, day);
+      if (routine != null &&
+          routine.weekdays.contains(Weekday.fromDateTime(day))) {
+        occurrences++;
+      }
+    }
+    return math.min(cap, occurrences);
   }
 
   int _countInRange(

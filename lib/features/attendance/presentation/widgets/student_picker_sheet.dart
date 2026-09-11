@@ -136,35 +136,23 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
       return;
     }
 
-    if (candidate.allowance.metRoutine) {
-      final bool? proceed = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext dialogContext) => AlertDialog(
-          title: const Text('Extra attendance?'),
+    // BR-10/AC-22: the weekly cap (routine + carry-over) is a hard block
+    // with the weekly-limit message (PRD §18) — extra attendance beyond the
+    // recovered allowance must not be possible.
+    if (!candidate.allowance.canAddAttendance) {
+      final int carry = candidate.allowance.carriedOver;
+      messenger.showSnackBar(
+        SnackBar(
           content: Text(
-            '${candidate.student.name} has already met the weekly routine '
-            '(${candidate.allowance.weeklyDays} day'
-            '${candidate.allowance.weeklyDays == 1 ? '' : 's'}'
-            '${candidate.allowance.carriedOver > 0 ? ' + ${candidate.allowance.carriedOver} carried' : ''}). '
-            'Record extra attendance anyway?',
+            'Weekly limit reached: ${candidate.student.name} allows '
+            '${candidate.allowance.maxAttendance} '
+            'visit${candidate.allowance.maxAttendance == 1 ? '' : 's'} this '
+            'week.'
+            '${carry > 0 ? ' Recovered carry-over used: $carry.' : ''}',
           ),
-          actions: <Widget>[
-            TextButton(
-              key: const Key('cancel-extra'),
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              key: const Key('confirm-extra'),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Record extra'),
-            ),
-          ],
         ),
       );
-      if (proceed != true) {
-        return;
-      }
+      return;
     }
 
     try {
@@ -188,6 +176,21 @@ class _StudentPickerSheetState extends ConsumerState<StudentPickerSheet> {
           SnackBar(
             content: Text(
               '${candidate.student.name} is already recorded on this date',
+            ),
+          ),
+        );
+      }
+    } on WeeklyLimitExceededException {
+      // Stale picker state — surface the weekly-limit message.
+      await _reload();
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Weekly limit reached: ${candidate.student.name} allows '
+              '${candidate.allowance.maxAttendance} '
+              'visit${candidate.allowance.maxAttendance == 1 ? '' : 's'} this '
+              'week.',
             ),
           ),
         );

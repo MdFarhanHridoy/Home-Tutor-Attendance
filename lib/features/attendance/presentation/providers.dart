@@ -22,6 +22,7 @@ final attendanceWorkflowServiceProvider = Provider<AttendanceWorkflowService>((
 ) {
   return AttendanceWorkflowService(
     studentsRepository: ref.watch(studentsRepositoryProvider),
+    teachingPeriodsRepository: ref.watch(teachingPeriodsRepositoryProvider),
     routinePeriodsRepository: ref.watch(routinePeriodsRepositoryProvider),
     attendanceRepository: ref.watch(attendanceRepositoryProvider),
   );

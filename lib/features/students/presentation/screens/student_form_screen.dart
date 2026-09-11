@@ -1,4 +1,3 @@
-import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +6,7 @@ import '../../../../core/constants/student_colors.dart';
 import '../../../../core/utils/date_format.dart';
 import '../../../../domain/entities/student.dart';
 import '../../../../domain/entities/weekday.dart';
+import '../../../calendar/presentation/providers.dart';
 import '../providers.dart';
 
 /// Add/Edit student form (PRD §9.6, AC-09).
@@ -42,10 +42,16 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
     Weekday.friday,
   };
   String _color = studentColorPalette.first;
-  DateTime _startDate = clock.now();
+  late DateTime _startDate; // set in initState from the injectable "today"
   bool _currentlyTeaching = true;
   bool _initialized = false;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDate = ref.read(calendarTodayProvider);
+  }
 
   bool get _isEdit => widget.studentId != null;
 
@@ -78,7 +84,7 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
       context: context,
       initialDate: _startDate,
       firstDate: DateTime(2000),
-      lastDate: DateTime(clock.now().year + 2),
+      lastDate: DateTime(_startDate.year + 2, 12, 31),
     );
     if (picked != null) {
       setState(() => _startDate = picked);
