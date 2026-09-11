@@ -28,37 +28,54 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Text(
-              'Home Tutor Attendance',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text('Offline attendance tracker'),
-          ),
-          const Divider(height: 1),
-          for (final (String, IconData, String) destination in _destinations)
-            ListTile(
-              leading: Icon(destination.$2),
-              title: Text(
-                destination.$3,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      child: SafeArea(
+        // Keeps the header below the status bar (user report: the title was
+        // hidden behind the phone's notification bar).
+        bottom: false,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+              child: Text(
+                'Home Tutor Attendance',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
-              selected: _isSelected(destination.$1, currentLocation),
-              onTap: () => _handleDestinationSelected(context, destination.$1),
             ),
-          // Reserved for the future theme toggle (PRD §9.4); intentionally
-          // empty in Version 1.
-          const SizedBox(height: 24),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'Offline attendance tracker',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ),
+            Divider(
+              height: 1,
+              color: scheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            for (final (String, IconData, String) destination in _destinations)
+              ListTile(
+                leading: Icon(destination.$2),
+                title: Text(
+                  destination.$3,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                selected: _isSelected(destination.$1, currentLocation),
+                onTap: () =>
+                    _handleDestinationSelected(context, destination.$1),
+              ),
+            // Reserved for the future theme toggle (PRD §9.4); intentionally
+            // empty in Version 1.
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }

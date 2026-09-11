@@ -199,34 +199,41 @@ class _AttendanceCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onRemove,
-        child: Row(
-          children: <Widget>[
-            Container(width: 8, height: 56, color: color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    student?.name ?? 'Unknown student',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Text(
-                    'Taught · tap to remove',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Semantics(
+        button: true,
+        label:
+            '${student?.name ?? 'Unknown student'}, taught on this date. '
+            'Activate to remove.',
+        child: InkWell(
+          onTap: onRemove,
+          child: Row(
+            children: <Widget>[
+              Container(width: 10, height: 56, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      student?.name ?? 'Unknown student',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                  ),
-                ],
+                    Text(
+                      'Taught · tap to remove',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Icon(Icons.check_circle, size: 20),
-            ),
-          ],
+              const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: Icon(Icons.check_circle, size: 20),
+              ),
+            ],
+          ),
         ),
       ),
     );

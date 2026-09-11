@@ -116,7 +116,7 @@ class MonthlyCalendar extends StatelessWidget {
         key: Key('cal-day-${DateUtil.toIsoDate(date)}'),
         onTap: () => onDateSelected(date),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
@@ -128,13 +128,14 @@ class MonthlyCalendar extends StatelessWidget {
                 ),
               if (records.length > maxVisibleChips)
                 Padding(
-                  padding: const EdgeInsets.only(top: 1),
+                  padding: const EdgeInsets.only(top: 1, left: 2),
                   child: Text(
                     '+${records.length - maxVisibleChips} more',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 9,
                     ),
                   ),
                 ),
@@ -207,10 +208,12 @@ class _Chip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 1),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        height: 14,
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        alignment: AlignmentDirectional.centerStart,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(3),
         ),
         child: Text(
           firstName,
@@ -218,7 +221,7 @@ class _Chip extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(
             context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.black87, fontSize: 10),
+          ).textTheme.bodySmall?.copyWith(color: Colors.black87, fontSize: 9.5),
         ),
       ),
     );

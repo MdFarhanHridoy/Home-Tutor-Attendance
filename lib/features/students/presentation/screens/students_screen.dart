@@ -175,11 +175,15 @@ class _StudentTile extends StatelessWidget {
 
     return ListTile(
       leading: Container(
-        width: 16,
-        height: 16,
+        width: 20,
+        height: 20,
         decoration: BoxDecoration(
           color: colorFromHex(student.color),
           shape: BoxShape.circle,
+          border: Border.all(
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+            width: 2,
+          ),
         ),
       ),
       title: Text(student.name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -188,7 +192,19 @@ class _StudentTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: student.currentlyTeaching ? null : const Text('Inactive'),
+      trailing: student.currentlyTeaching
+          ? null
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Inactive',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ),
       onTap: () => context.push(AppRoutes.studentDetail(student.id)),
     );
   }

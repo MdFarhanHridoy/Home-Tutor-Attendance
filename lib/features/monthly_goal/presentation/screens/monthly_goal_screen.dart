@@ -124,7 +124,9 @@ class _MonthCard extends StatelessWidget {
                       summary.month.year,
                       summary.month.month,
                     ),
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Text(
@@ -136,6 +138,18 @@ class _MonthCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (summary.totalScheduled > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    value: (summary.totalAttended / summary.totalScheduled)
+                        .clamp(0.0, 1.0),
+                  ),
+                ),
+              ),
             const Divider(height: 12),
             for (final StudentMonthGoal row in summary.students)
               _StudentRow(
