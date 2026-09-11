@@ -1,0 +1,12 @@
+# flutter_launcher_icons configuration — generates all Android launcher
+# icons (legacy mipmap PNGs + adaptive icons) from docs/app_logo.jpg.
+# Regenerate after changing the logo with:
+#   flutter pub get
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "docs/app_logo.jpg"
+  min_sdk_android: 21
+  adaptive_icon_background: "#111318"
+  adaptive_icon_foreground: "docs/app_logo.jpg"
