@@ -109,9 +109,10 @@ void main() {
 
     expect(allowance.carriedOver, 0);
     expect(allowance.weeklyDays, 3);
-    // Active part of the week Sep 4-10 is Sep 7-10: Mon + Wed → prorated 2.
-    expect(allowance.weekAllowance, 2);
-    expect(allowance.maxAttendance, 2);
+    // Active part of the week Sep 4-10 is Sep 7-10 → 4 active days, capped
+    // at the routine rate of 3.
+    expect(allowance.weekAllowance, 3);
+    expect(allowance.maxAttendance, 3);
     expect(allowance.canAddAttendance, isTrue);
   });
 
@@ -188,23 +189,68 @@ void main() {
     expect(allowance.maxAttendance, 3);
   });
 
-  test(
-    'partial first week prorates to routine weekdays inside the active part',
-    () {
-      // Teaching starts Wednesday Sep 9; routine M/W/F. Active part of the
-      // week Sep 4-10 is Sep 9-10 → only Wednesday qualifies → allowance 1.
-      final allowance = compute(
-        date: DateTime.utc(2026, 9, 10),
-        periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 9))],
-        routines: <RoutinePeriod>[
-          routine('r1', DateTime.utc(2026, 9, 9), null),
-        ],
-      );
+  test('mid-week start on non-routine weekdays is recordable (user case)', () {
+    // User-reported scenario: routine Fri/Sat/Tue (3 days/week), teaching
+    // starts Wednesday Sep 9. Wednesday must be recordable — the tutor may
+    // teach any 3 of the 7 weekdays (approved 2026-09-11).
+    final List<Weekday> friSatTue = <Weekday>[
+      Weekday.friday,
+      Weekday.saturday,
+      Weekday.tuesday,
+    ];
 
-      expect(allowance.weekAllowance, 1);
-      expect(allowance.maxAttendance, 1);
-    },
-  );
+    // Before any attendance: 2 active days in the week (Sep 9-10), routine
+    // rate 3 → prorated allowance 2 → Wednesday recordable.
+    final initial = compute(
+      date: DateTime.utc(2026, 9, 9),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 9))],
+      routines: <RoutinePeriod>[
+        routine('r1', DateTime.utc(2026, 9, 9), null, weekdays: friSatTue),
+      ],
+    );
+    expect(initial.weekAllowance, 2);
+    expect(initial.canAddAttendance, isTrue);
+
+    // After recording Wednesday and Thursday, the week is exhausted.
+    final exhausted = compute(
+      date: DateTime.utc(2026, 9, 10),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 9))],
+      routines: <RoutinePeriod>[
+        routine('r1', DateTime.utc(2026, 9, 9), null, weekdays: friSatTue),
+      ],
+      attendance: <AttendanceRecord>[
+        record(DateTime.utc(2026, 9, 9)),
+        record(DateTime.utc(2026, 9, 10)),
+      ],
+    );
+    expect(exhausted.maxAttendance, 2);
+    expect(exhausted.canAddAttendance, isFalse);
+
+    // Pre-start dates in the same week remain blocked (no effective
+    // routine before Sep 9).
+    final preStart = compute(
+      date: DateTime.utc(2026, 9, 8),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 9))],
+      routines: <RoutinePeriod>[
+        routine('r1', DateTime.utc(2026, 9, 9), null, weekdays: friSatTue),
+      ],
+    );
+    expect(preStart.maxAttendance, 0);
+    expect(preStart.canAddAttendance, isFalse);
+  });
+
+  test('partial first week prorates to active days (Edge 13)', () {
+    // Teaching starts Wednesday Sep 9; the active part of the week
+    // Sep 4-10 is Sep 9-10 → 2 active days, routine rate 3 → allowance 2.
+    final allowance = compute(
+      date: DateTime.utc(2026, 9, 10),
+      periods: <TeachingPeriod>[teaching('t1', DateTime.utc(2026, 9, 9))],
+      routines: <RoutinePeriod>[routine('r1', DateTime.utc(2026, 9, 9), null)],
+    );
+
+    expect(allowance.weekAllowance, 2);
+    expect(allowance.maxAttendance, 2);
+  });
 
   test(
     'stopping teaching resets carry; reactivation starts fresh (Edge 12)',

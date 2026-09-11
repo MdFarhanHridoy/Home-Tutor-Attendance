@@ -4,7 +4,6 @@ import '../../core/utils/date_util.dart';
 import '../entities/attendance_record.dart';
 import '../entities/routine_period.dart';
 import '../entities/teaching_period.dart';
-import '../entities/weekday.dart';
 import 'routine_period_service.dart';
 import 'teaching_period_service.dart';
 
@@ -21,9 +20,10 @@ class WeeklyAllowance {
   /// Base weekly cap of the routine effective on the date (0 = no routine).
   final int weeklyDays;
 
-  /// Prorated base allowance for the current week: the routine weekday
-  /// occurrences inside the ACTIVE part of the Friday–Thursday week
-  /// (Edge Case 13), capped at [weeklyDays].
+  /// Prorated base allowance for the current week: the ACTIVE days of the
+  /// Friday–Thursday week (teaching-period coverage), capped at
+  /// [weeklyDays] — see the service documentation for the user-approved
+  /// refinement of Edge Case 13.
   final int weekAllowance;
 
   /// Attendance records in the whole current Friday–Thursday week
@@ -49,11 +49,16 @@ class WeeklyAllowance {
 }
 
 /// Weekly attendance cap with carry-over recovery — the authoritative rule
-/// of PRD §10.6 (v1.1):
+/// of PRD §10.6 (v1.1), with one user-approved refinement:
 ///
 /// - weeks run Friday → Thursday regardless of calendar months;
-/// - `weekAllowance(week) = min(weekly_days, routine-weekday occurrences
-///   inside the active part of that week)`;
+/// - `weekAllowance(week) = min(weekly_days, ACTIVE days in the week)` —
+///   prorated by the days the student is actively being taught, on ANY
+///   weekdays (the tutor may teach any N of the 7 days; refinement of
+///   Edge Case 13 approved 2026-09-11, replacing routine-weekday-occurrence
+///   proration which blocked a mid-week start on a non-routine weekday);
+/// - dates outside the teaching period stay blocked via routine
+///   effectiveness;
 /// - `carryOver(next) = carryOver(current) + max(0, allowance - attended)`
 ///   for weeks the student was actively taught; carry never expires while
 ///   active and never resets at month boundaries;
@@ -130,7 +135,7 @@ class WeeklyAllowanceService {
     DateTime cursor = weekStartOf(earliest);
     while (cursor.isBefore(weekStart)) {
       final DateTime cursorEnd = DateUtil.addDays(cursor, 6);
-      if (_hasActiveDay(cursor, cursorEnd, periods, routines)) {
+      if (_activeDaysInWeek(cursor, cursorEnd, periods) > 0) {
         final RoutinePeriod? capRoutine = _routines.effectiveOn(
           routines,
           cursorEnd,
@@ -166,14 +171,13 @@ class WeeklyAllowanceService {
     );
   }
 
-  /// Whether any day in the week is covered by both a teaching period and
-  /// an effective routine ("actively taught", §10.6).
-  bool _hasActiveDay(
+  /// Days of the week covered by a teaching period.
+  int _activeDaysInWeek(
     DateTime weekStart,
     DateTime weekEnd,
     List<TeachingPeriod> periods,
-    List<RoutinePeriod> routines,
   ) {
+    int activeDays = 0;
     for (
       DateTime day = weekStart;
       !day.isAfter(weekEnd);
@@ -182,18 +186,21 @@ class WeeklyAllowanceService {
       final bool teaching = periods.any(
         (TeachingPeriod period) => _teachingPeriods.coversDate(period, day),
       );
-      if (!teaching) {
-        continue;
-      }
-      if (_routines.effectiveOn(routines, day) != null) {
-        return true;
+      if (teaching) {
+        activeDays++;
       }
     }
-    return false;
+    return activeDays;
   }
 
-  /// Routine-weekday occurrences inside the ACTIVE part of the week,
-  /// capped at [cap] (PRD §10.6 formula).
+  /// Prorated base allowance for the week: active days capped at [cap].
+  ///
+  /// The weekly cap is prorated by ACTIVE DAYS (user-approved refinement of
+  /// PRD §10.6 / Edge 13, 2026-09-11): the tutor may teach any N of the 7
+  /// weekdays, so a week where teaching starts or stops mid-week allows
+  /// min(weeklyDays, active days) on ANY weekdays — never zero just because
+  /// the routine's nominal weekdays fall outside the active part. Dates
+  /// outside the teaching period remain blocked via routine effectiveness.
   int _weekAllowance(
     DateTime weekStart,
     DateTime weekEnd,
@@ -201,25 +208,7 @@ class WeeklyAllowanceService {
     List<TeachingPeriod> periods,
     List<RoutinePeriod> routines,
   ) {
-    int occurrences = 0;
-    for (
-      DateTime day = weekStart;
-      !day.isAfter(weekEnd);
-      day = DateUtil.addDays(day, 1)
-    ) {
-      final bool teaching = periods.any(
-        (TeachingPeriod period) => _teachingPeriods.coversDate(period, day),
-      );
-      if (!teaching) {
-        continue;
-      }
-      final RoutinePeriod? routine = _routines.effectiveOn(routines, day);
-      if (routine != null &&
-          routine.weekdays.contains(Weekday.fromDateTime(day))) {
-        occurrences++;
-      }
-    }
-    return math.min(cap, occurrences);
+    return math.min(cap, _activeDaysInWeek(weekStart, weekEnd, periods));
   }
 
   int _countInRange(

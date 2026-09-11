@@ -81,3 +81,17 @@ authoritative §10.6 semantics — blocking enforcement, no carry reset at
 month boundaries (only on teaching stop, per §10.6 rules), and prorated
 partial weeks — and added `WeeklyLimitExceededException` at the service
 layer plus the blocking snackbar in the picker.
+
+### User-approved refinement (2026-09-11, post Phase 8 testing)
+
+User report: a student with a Fri/Sat/Tue routine starting Wednesday
+Sep 9 could not be recorded on Wednesday — the routine-weekday-occurrence
+proration of Edge 13 yielded a zero allowance for the partial week, while
+the tutor may in practice teach ANY N of the 7 weekdays. Approved fix:
+**prorate the weekly cap by active days** —
+`weekAllowance(week) = min(weekly_days, teaching-covered days in the week)`
+on any weekdays; dates outside the teaching period remain blocked via
+routine effectiveness. Covered by
+`weekly_allowance_service_test` "mid-week start on non-routine weekdays is
+recordable (user case)". The monthly goal's scheduled counts still use
+routine weekdays (display semantics unchanged).
