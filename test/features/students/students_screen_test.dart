@@ -110,4 +110,28 @@ void main() {
     expect(find.text('No students match your search'), findsOneWidget);
     await disposeApp(tester);
   });
+
+  testWidgets('whitespace-only search shows all students', (
+    WidgetTester tester,
+  ) async {
+    final AppDatabase db = await pumpAppWithDb(tester);
+    final service = serviceFor(db);
+    await service.createStudent(
+      name: 'Alpha',
+      weeklyDays: 3,
+      routineWeekdays: monWedFri,
+      color: '0xFF42A5F5',
+      startDate: DateTime(2026, 8, 1),
+    );
+    await openStudents(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('students-search-field')),
+      '   ',
+    );
+    await tester.pump();
+
+    expect(find.text('Alpha'), findsOneWidget);
+    await disposeApp(tester);
+  });
 }

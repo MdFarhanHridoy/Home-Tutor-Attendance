@@ -50,6 +50,7 @@ class DateDetailScreen extends ConsumerWidget {
             orElse: () => const Center(child: CircularProgressIndicator()),
           );
         },
+        error: (Object error, StackTrace _) => _ErrorView(message: '$error'),
         orElse: () => const Center(child: CircularProgressIndicator()),
       ),
     );
@@ -157,6 +158,22 @@ class DateDetailScreen extends ConsumerWidget {
     } on FormatException {
       return null;
     }
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text('Something went wrong loading attendance:\n$message'),
+      ),
+    );
   }
 }
 

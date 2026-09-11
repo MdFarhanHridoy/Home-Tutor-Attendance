@@ -205,4 +205,35 @@ void main() {
     await tester.tap(find.byKey(const Key('cal-day-2026-09-23')));
     expect(selected, DateTime.utc(2026, 9, 23));
   });
+
+  testWidgets('day cells expose screen-reader labels', (
+    WidgetTester tester,
+  ) async {
+    final DateTime date = DateTime.utc(2026, 9, 9);
+    final MonthlyCalendar calendar = MonthlyCalendar(
+      month: const YearMonth(2026, 9),
+      today: DateTime.utc(2026, 9, 10),
+      recordsByDate: <DateTime, List<AttendanceRecord>>{
+        date: <AttendanceRecord>[
+          recordOf('a1', 's1', date),
+          recordOf('a2', 's2', date),
+        ],
+      },
+      studentById: const <String, Student>{},
+      onDateSelected: (DateTime _) {},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: appTheme,
+        home: Scaffold(body: SizedBox.expand(child: calendar)),
+      ),
+    );
+
+    expect(
+      find.bySemanticsLabel('9 Sep 2026, 2 students recorded'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('10 Sep 2026, today'), findsOneWidget);
+    expect(find.bySemanticsLabel('11 Sep 2026'), findsOneWidget);
+  });
 }

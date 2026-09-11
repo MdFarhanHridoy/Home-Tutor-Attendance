@@ -59,6 +59,57 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('swipe navigation changes months (PRD §34)', (
+    WidgetTester tester,
+  ) async {
+    await pumpAppWithDb(tester);
+
+    // Fling left → next month.
+    await tester.fling(
+      find.byKey(const Key('calendar-swipe-area')),
+      const Offset(-400, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('October 2026'), findsOneWidget);
+
+    // Fling right → previous month.
+    await tester.fling(
+      find.byKey(const Key('calendar-swipe-area')),
+      const Offset(400, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('September 2026'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('December to January rollover navigates across the year', (
+    WidgetTester tester,
+  ) async {
+    await pumpAppWithDb(tester);
+
+    // September → December 2026.
+    for (int i = 0; i < 3; i++) {
+      await tester.tap(find.byKey(const Key('next-month')));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('December 2026'), findsOneWidget);
+    expect(find.byKey(const Key('cal-day-2026-12-31')), findsOneWidget);
+
+    // One more → January 2027.
+    await tester.tap(find.byKey(const Key('next-month')));
+    await tester.pumpAndSettle();
+    expect(find.text('January 2027'), findsOneWidget);
+    expect(find.byKey(const Key('cal-day-2027-01-31')), findsOneWidget);
+
+    // And back over the boundary.
+    await tester.tap(find.byKey(const Key('prev-month')));
+    await tester.pumpAndSettle();
+    expect(find.text('December 2026'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
   testWidgets('attendance chips render from the database', (
     WidgetTester tester,
   ) async {

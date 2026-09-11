@@ -199,10 +199,12 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
             TextFormField(
               key: const Key('student-name-field'),
               controller: _nameController,
+              maxLength: 100, // matches the database column constraint
               decoration: const InputDecoration(
                 labelText: 'Name',
                 hintText: 'Student name',
                 border: OutlineInputBorder(),
+                counterText: '',
               ),
               textCapitalization: TextCapitalization.words,
               validator: (String? value) =>

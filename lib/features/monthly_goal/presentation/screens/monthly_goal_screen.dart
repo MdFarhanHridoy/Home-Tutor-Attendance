@@ -46,6 +46,8 @@ class MonthlyGoalScreen extends ConsumerWidget {
                   _MonthCard(summary: summary),
               ],
             ),
+            error: (Object error, StackTrace _) =>
+                _ErrorView(message: '$error'),
             orElse: () => const Center(child: CircularProgressIndicator()),
           );
         },
@@ -69,6 +71,22 @@ class _EmptyView extends StatelessWidget {
           Text('No attendance data yet'),
           Text('Students and their monthly attendance will appear here'),
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text('Something went wrong loading summaries:\n$message'),
       ),
     );
   }

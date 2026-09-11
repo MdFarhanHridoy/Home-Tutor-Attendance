@@ -72,8 +72,14 @@ class HomeScreen extends ConsumerWidget {
             child: studentsAsync.maybeWhen(
               data: (List<Student> students) {
                 return attendanceAsync.maybeWhen(
-                  data: (List<AttendanceRecord> records) =>
-                      _calendar(context, month, today, records, students),
+                  data: (List<AttendanceRecord> records) => _swipeableCalendar(
+                    context,
+                    ref,
+                    month,
+                    today,
+                    records,
+                    students,
+                  ),
                   orElse: () =>
                       const Center(child: CircularProgressIndicator()),
                 );
@@ -83,6 +89,37 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Wraps the calendar with horizontal swipe navigation (PRD §34 optional
+  /// feature): fling left → next month, fling right → previous month.
+  Widget _swipeableCalendar(
+    BuildContext context,
+    WidgetRef ref,
+    YearMonth month,
+    DateTime today,
+    List<AttendanceRecord> records,
+    List<Student> students,
+  ) {
+    return GestureDetector(
+      key: const Key('calendar-swipe-area'),
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (DragEndDetails details) {
+        final double? velocity = details.primaryVelocity;
+        final CalendarController controller = ref.read(
+          calendarControllerProvider.notifier,
+        );
+        if (velocity == null) {
+          return;
+        }
+        if (velocity <= -250) {
+          controller.nextMonth();
+        } else if (velocity >= 250) {
+          controller.previousMonth();
+        }
+      },
+      child: _calendar(context, month, today, records, students),
     );
   }
 

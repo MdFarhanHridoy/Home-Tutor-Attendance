@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/student_colors.dart';
+import '../../../../core/utils/date_format.dart';
 import '../../../../core/utils/date_util.dart';
 import '../../../../domain/entities/attendance_record.dart';
 import '../../../../domain/entities/student.dart';
@@ -107,36 +108,53 @@ class MonthlyCalendar extends StatelessWidget {
     final List<AttendanceRecord> records =
         recordsByDate[date] ?? const <AttendanceRecord>[];
 
-    return InkWell(
-      key: Key('cal-day-${DateUtil.toIsoDate(date)}'),
-      onTap: () => onDateSelected(date),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _dayBadge(context, day, isToday),
-            for (int i = 0; i < records.length && i < maxVisibleChips; i++)
-              _Chip(
-                record: records[i],
-                student: studentById[records[i].studentId],
-              ),
-            if (records.length > maxVisibleChips)
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Text(
-                  '+${records.length - maxVisibleChips} more',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return Semantics(
+      label: _semanticLabel(date, isToday, records.length),
+      button: true,
+      excludeSemantics: true,
+      child: InkWell(
+        key: Key('cal-day-${DateUtil.toIsoDate(date)}'),
+        onTap: () => onDateSelected(date),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _dayBadge(context, day, isToday),
+              for (int i = 0; i < records.length && i < maxVisibleChips; i++)
+                _Chip(
+                  record: records[i],
+                  student: studentById[records[i].studentId],
+                ),
+              if (records.length > maxVisibleChips)
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Text(
+                    '+${records.length - maxVisibleChips} more',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  /// Screen-reader label for a day cell, e.g.
+  /// "9 Sep 2026, today, 2 students recorded".
+  String _semanticLabel(DateTime date, bool isToday, int recordCount) {
+    final String base = AppDateFormats.shortDate(date);
+    final List<String> parts = <String>[
+      if (isToday) '$base, today' else base,
+      if (recordCount > 0)
+        '$recordCount ${recordCount == 1 ? 'student' : 'students'} recorded',
+    ];
+    return parts.join(', ');
   }
 
   Widget _dayBadge(BuildContext context, int day, bool isToday) {
