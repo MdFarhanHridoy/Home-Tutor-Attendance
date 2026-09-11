@@ -143,3 +143,22 @@ references contribute. No branding, logos, or proprietary assets are copied.
 No networking, accounts, backend, analytics, or cloud sync in Version 1
 (PRD §4, BR-09). The repository layer is the seam where a future sync system
 may attach without moving data off-device.
+
+## 8. Release notes (Phase 10, 2026-09-11)
+
+- **Identity:** display name `Home Tutor Attendance`, applicationId
+  `dev.hometutor.home_tutor_attendance`, version 1.0.0+1, dark-only Material 3.
+- **Launcher icon:** Flutter default in v1 (custom artwork is future work;
+  no proprietary assets copied per PRD §53).
+- **Signing:** the release APK is signed with the local debug keystore —
+  fine for personal installation; define a dedicated keystore before any
+  store distribution.
+- **Database safety:** schemaVersion 1 with a single additive `onCreate`
+  path and `PRAGMA foreign_keys = ON`; no destructive migrations exist, and
+  future migrations must stay step-by-step and additive (PRD §40). Fresh
+  install and reopen-persistence are covered by automated tests
+  (`app_database_test`).
+- **Permissions:** the release/main manifest declares none (INTERNET exists
+  only in the debug overlay) — the app is fully offline.
+- **v1.2 model:** routine weekdays optional, no weekly cap, flat
+  `weekly_days × 4` monthly targets (see PRD v1.2 Change Summary).
