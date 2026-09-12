@@ -40,8 +40,9 @@ class MonthlyCalendar extends StatelessWidget {
     Weekday.thursday,
   ];
 
-  /// Attendance chips fully rendered per cell before the "+N more" overflow.
-  static const int maxVisibleChips = 2;
+  /// Attendance chips fully rendered per cell before the "+N more"
+  /// overflow (user request 2026-09-12: up to five names fit a date cell).
+  static const int maxVisibleChips = 5;
 
   final YearMonth month;
   final DateTime today;
@@ -117,29 +118,50 @@ class MonthlyCalendar extends StatelessWidget {
         onTap: () => onDateSelected(date),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _dayBadge(context, day, isToday),
-              for (int i = 0; i < records.length && i < maxVisibleChips; i++)
-                _Chip(
-                  record: records[i],
-                  student: studentById[records[i].studentId],
-                ),
-              if (records.length > maxVisibleChips)
-                Padding(
-                  padding: const EdgeInsets.only(top: 1, left: 2),
-                  child: Text(
-                    '+${records.length - maxVisibleChips} more',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 9,
-                    ),
+          // The cell keeps its full-width layout but scales down (never
+          // up) when five chips plus the day badge exceed the available
+          // cell height, so no date cell ever overflows.
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.topStart,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      _dayBadge(context, day, isToday),
+                      for (
+                        int i = 0;
+                        i < records.length && i < maxVisibleChips;
+                        i++
+                      )
+                        _Chip(
+                          record: records[i],
+                          student: studentById[records[i].studentId],
+                        ),
+                      if (records.length > maxVisibleChips)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1, left: 2),
+                          child: Text(
+                            '+${records.length - maxVisibleChips} more',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                  fontSize: 9,
+                                ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-            ],
+              );
+            },
           ),
         ),
       ),

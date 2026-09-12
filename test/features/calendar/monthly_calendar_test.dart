@@ -149,7 +149,7 @@ void main() {
     expect(find.byKey(const Key('cal-day-2026-09-30')), findsOneWidget);
   });
 
-  testWidgets('attendance chips render colors with +N overflow', (
+  testWidgets('five chips render before the +N overflow (user request)', (
     WidgetTester tester,
   ) async {
     final DateTime date = DateTime.utc(2026, 9, 9);
@@ -161,12 +161,18 @@ void main() {
           recordOf('a1', 's1', date),
           recordOf('a2', 's2', date),
           recordOf('a3', 's3', date),
+          recordOf('a4', 's4', date),
+          recordOf('a5', 's5', date),
+          recordOf('a6', 's6', date),
         ],
       },
       studentById: <String, Student>{
         's1': studentOf('s1', 'Alpha One', '0xFF42A5F5'),
         's2': studentOf('s2', 'Bravo Two', '0xFFEF5350'),
         's3': studentOf('s3', 'Charlie Three', '0xFF66BB6A'),
+        's4': studentOf('s4', 'Delta Four', '0xFFAB47BC'),
+        's5': studentOf('s5', 'Echo Five', '0xFFFFA726'),
+        's6': studentOf('s6', 'Foxtrot Six', '0xFF26A69A'),
       },
       onDateSelected: (DateTime _) {},
     );
@@ -177,9 +183,13 @@ void main() {
       ),
     );
 
+    // Five names visible; the sixth collapses behind the overflow label.
     expect(find.text('Alpha'), findsOneWidget);
     expect(find.text('Bravo'), findsOneWidget);
-    expect(find.text('Charlie'), findsNothing); // behind the overflow
+    expect(find.text('Charlie'), findsOneWidget);
+    expect(find.text('Delta'), findsOneWidget);
+    expect(find.text('Echo'), findsOneWidget);
+    expect(find.text('Foxtrot'), findsNothing); // behind the overflow
     expect(find.text('+1 more'), findsOneWidget);
   });
 

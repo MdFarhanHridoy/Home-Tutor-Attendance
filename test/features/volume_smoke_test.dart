@@ -39,7 +39,7 @@ void main() {
 
     // Calendar: 40 chips on the busiest day (Mon Sep 7) render with overflow.
     await tester.pumpAndSettle();
-    expect(find.text('+38 more'), findsWidgets);
+    expect(find.text('+35 more'), findsWidgets);
     expect(find.byKey(const Key('cal-day-2026-09-07')), findsOneWidget);
 
     // Goal screen: 40 rows in the September card settle without errors.
